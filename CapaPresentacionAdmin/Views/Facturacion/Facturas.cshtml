@@ -1,0 +1,250 @@
+@{
+    ViewBag.Title = "Facturas";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    bool puedeAnular = Session["NombreRol"]?.ToString() == "ADMINISTRADOR" || Session["NombreRol"]?.ToString() == "GERENTE";
+}
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<ol class="breadcrumb mb-4 mt-4">
+    <li class="breadcrumb-item"><a href="@Url.Action("Index","Home")">Resumen</a></li>
+    <li class="breadcrumb-item">Facturación</li>
+    <li class="breadcrumb-item active">Facturas</li>
+</ol>
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white">
+        <ul class="nav nav-tabs card-header-tabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabEmitidas" type="button" role="tab">
+                    <i class="fas fa-file-invoice me-1"></i>Facturas emitidas
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabPendientes" type="button" role="tab" id="btnTabPendientes">
+                    <i class="fas fa-hourglass-half me-1"></i>Ventas por facturar
+                </button>
+            </li>
+        </ul>
+    </div>
+    <div class="card-body">
+        <div class="row g-2 align-items-end mb-3">
+            <div class="col-sm-3">
+                <label class="form-label" for="txtFechaInicio">Desde</label>
+                <input type="date" class="form-control" id="txtFechaInicio">
+            </div>
+            <div class="col-sm-3">
+                <label class="form-label" for="txtFechaFin">Hasta</label>
+                <input type="date" class="form-control" id="txtFechaFin">
+            </div>
+            <div class="col-sm-3">
+                <label class="form-label" for="cboEstado">Estado</label>
+                <select class="form-select" id="cboEstado">
+                    <option value="">Todos</option>
+                    <option value="VALIDADA">Validada</option>
+                    <option value="OBSERVADA">Observada</option>
+                    <option value="PENDIENTE">Pendiente</option>
+                    <option value="ANULADA">Anulada</option>
+                </select>
+            </div>
+            <div class="col-sm-3">
+                <button type="button" class="btn btn-primary w-100" id="btnBuscar"><i class="fas fa-search me-1"></i>Buscar</button>
+            </div>
+        </div>
+
+        <div class="tab-content">
+            <div class="tab-pane fade show active" id="tabEmitidas" role="tabpanel">
+                <table id="tablaFacturas" class="display cell-border" style="width:100%">
+                    <thead>
+                        <tr>
+                            <th>N°</th>
+                            <th>Fecha</th>
+                            <th>Cliente</th>
+                            <th>CI / NIT</th>
+                            <th>Total Bs</th>
+                            <th>Estado</th>
+                            <th>Venta</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div class="tab-pane fade" id="tabPendientes" role="tabpanel">
+                <table id="tablaPendientes" class="display cell-border" style="width:100%">
+                    <thead>
+                        <tr>
+                            <th>Venta</th>
+                            <th>Fecha</th>
+                            <th>Cliente</th>
+                            <th>Tipo de pago</th>
+                            <th>Total Bs</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal anulación -->
+<div class="modal fade" id="modalAnular" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fas fa-ban me-2"></i>Anular factura <span id="anTitulo"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="anIdFactura" value="0" />
+                <p class="small text-muted mb-2">
+                    La anulación se informa al SIN y se notifica al comprador por correo. Solo puede hacerse hasta el día 9 del mes siguiente a la emisión
+                    (límite para esta factura: <b id="anLimite"></b>).
+                </p>
+                <label class="form-label" for="anMotivo">Motivo</label>
+                <select class="form-select" id="anMotivo"></select>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="btnConfirmarAnulacion">Anular factura</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@Html.Partial("~/Views/Facturacion/_ModalEmitirFactura.cshtml")
+
+@section scripts {
+    <script>
+        var puedeAnular = @(puedeAnular ? "true" : "false");
+        var tablaFacturas, tablaPendientes;
+
+        var coloresEstado = { VALIDADA: "bg-success", OBSERVADA: "bg-warning text-dark", PENDIENTE: "bg-info text-dark", ANULADA: "bg-danger" };
+
+        function filtros() {
+            return { fechaInicio: $("#txtFechaInicio").val(), fechaFin: $("#txtFechaFin").val(), estado: $("#cboEstado").val() };
+        }
+
+        function escapar(texto) { return $("<span>").text(texto == null ? "" : texto).html(); }
+
+        $(function () {
+            var hoy = new Date();
+            var primerDia = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+            $("#txtFechaInicio").val(primerDia.toISOString().substring(0, 10));
+            $("#txtFechaFin").val(hoy.toISOString().substring(0, 10));
+
+            tablaFacturas = $("#tablaFacturas").DataTable({
+                responsive: true,
+                ordering: false,
+                ajax: { url: '@Url.Action("ListarFacturas", "Facturacion")', type: "GET", data: function (d) { return $.extend(d, filtros()); } },
+                columns: [
+                    { data: "numero_factura" },
+                    { data: "fecha_emision" },
+                    { data: "nombre_razon_social", render: escapar },
+                    { data: "documento", render: escapar },
+                    { data: "monto_total", render: function (v) { return Number(v).toFixed(2); }, className: "text-end" },
+                    {
+                        data: "estado", render: function (v, t, row) {
+                            var extra = "";
+                            if (v === "OBSERVADA" && row.mensajes) extra = ' <i class="fas fa-info-circle text-warning btn-ver-mensajes" role="button" title="Ver observaciones"></i>';
+                            if (v === "ANULADA" && row.motivo_anulacion) extra = '<div class="small text-muted">' + escapar(row.motivo_anulacion) + "</div>";
+                            return '<span class="badge ' + (coloresEstado[v] || "bg-secondary") + '">' + v + "</span>" + extra;
+                        }
+                    },
+                    { data: "id_venta", render: function (v) { return "#" + v; } },
+                    {
+                        data: null, orderable: false, searchable: false, width: "190px",
+                        render: function (d, t, row) {
+                            var html = '<div class="btn-group btn-group-sm">'
+                                + '<button type="button" class="btn btn-outline-primary btn-imprimir" title="Imprimir (carta)"><i class="fas fa-print"></i></button>'
+                                + '<button type="button" class="btn btn-outline-primary btn-rollo" title="Imprimir (rollo 80 mm)"><i class="fas fa-receipt"></i></button>'
+                                + '<a class="btn btn-outline-secondary" title="Descargar XML" href="@Url.Action("DescargarXml", "Facturacion")?id=' + row.id_factura + '"><i class="fas fa-file-code"></i></a>';
+                            if (puedeAnular && row.anulable)
+                                html += '<button type="button" class="btn btn-outline-danger btn-anular" title="Anular"><i class="fas fa-ban"></i></button>';
+                            return html + "</div>";
+                        }
+                    }
+                ]
+            });
+
+            tablaPendientes = $("#tablaPendientes").DataTable({
+                responsive: true,
+                ordering: false,
+                ajax: { url: '@Url.Action("ListarVentasPendientes", "Facturacion")', type: "GET", data: function (d) { return $.extend(d, filtros()); } },
+                columns: [
+                    { data: "id_venta", render: function (v) { return "#" + v; } },
+                    { data: "fecha" },
+                    { data: "cliente", render: escapar },
+                    { data: "tipo_pago", render: escapar },
+                    { data: "monto_total", render: function (v) { return Number(v).toFixed(2); }, className: "text-end" },
+                    {
+                        data: null, orderable: false, searchable: false, width: "120px",
+                        defaultContent: '<button type="button" class="btn btn-success btn-sm btn-facturar"><i class="fas fa-file-invoice me-1"></i>Facturar</button>'
+                    }
+                ]
+            });
+
+            $.get('@Url.Action("ListarCatalogo", "Facturacion")', { tipo: "MOTIVO_ANULACION" }, function (res) {
+                $.each(res.data, function (i, c) { $("#anMotivo").append($("<option>").val(c.codigo).text(c.descripcion)); });
+            });
+        });
+
+        function recargar() {
+            tablaFacturas.ajax.reload();
+            tablaPendientes.ajax.reload();
+        }
+
+        $("#btnBuscar").on("click", recargar);
+        $("#btnTabPendientes").on("shown.bs.tab", function () { tablaPendientes.columns.adjust().responsive.recalc(); });
+
+        function filaDatos(tabla, boton) {
+            var $tr = $(boton).closest("tr");
+            if ($tr.hasClass("child")) $tr = $tr.prev();
+            return tabla.row($tr).data();
+        }
+
+        $("#tablaFacturas tbody").on("click", ".btn-imprimir", function () {
+            window.open('@Url.Action("Representacion", "Facturacion")?id=' + filaDatos(tablaFacturas, this).id_factura, "_blank");
+        });
+        $("#tablaFacturas tbody").on("click", ".btn-rollo", function () {
+            window.open('@Url.Action("Representacion", "Facturacion")?formato=rollo&id=' + filaDatos(tablaFacturas, this).id_factura, "_blank");
+        });
+        $("#tablaFacturas tbody").on("click", ".btn-ver-mensajes", function () {
+            var d = filaDatos(tablaFacturas, this);
+            Swal.fire({ icon: "warning", title: "Observaciones del SIN", html: '<div class="text-start small">' + escapar(d.mensajes).split(" | ").join("<br>") + "</div>" });
+        });
+        $("#tablaFacturas tbody").on("click", ".btn-anular", function () {
+            var d = filaDatos(tablaFacturas, this);
+            $("#anIdFactura").val(d.id_factura);
+            $("#anTitulo").text("N° " + d.numero_factura);
+            $("#anLimite").text(d.fecha_limite_anulacion);
+            $("#modalAnular").modal("show");
+        });
+
+        $("#btnConfirmarAnulacion").on("click", function () {
+            var $btn = $(this).prop("disabled", true);
+            $.ajax({
+                url: '@Url.Action("AnularFactura", "Facturacion")',
+                type: "POST",
+                data: JSON.stringify({ idFactura: parseInt($("#anIdFactura").val()), codigoMotivo: parseInt($("#anMotivo").val()) }),
+                contentType: "application/json; charset=utf-8"
+            }).done(function (res) {
+                if (res.resultado) {
+                    $("#modalAnular").modal("hide");
+                    Swal.fire("Factura anulada", res.mensaje, "success");
+                    recargar();
+                } else {
+                    Swal.fire("No se pudo anular", res.mensaje, "error");
+                }
+            }).fail(function (xhr) {
+                Swal.fire("Error", (xhr.responseJSON && xhr.responseJSON.mensaje) || "Error de comunicación con el servidor.", "error");
+            }).always(function () { $btn.prop("disabled", false); });
+        });
+
+        $("#tablaPendientes tbody").on("click", ".btn-facturar", function () {
+            abrirEmisionFactura(filaDatos(tablaPendientes, this).id_venta, function () { recargar(); });
+        });
+    </script>
+}

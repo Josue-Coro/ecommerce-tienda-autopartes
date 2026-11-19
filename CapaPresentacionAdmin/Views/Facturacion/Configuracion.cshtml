@@ -1,0 +1,319 @@
+@{
+    ViewBag.Title = "Configuración de facturación";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<ol class="breadcrumb mb-4 mt-4">
+    <li class="breadcrumb-item"><a href="@Url.Action("Index","Home")">Resumen</a></li>
+    <li class="breadcrumb-item">Facturación</li>
+    <li class="breadcrumb-item active">Configuración</li>
+</ol>
+
+<div class="alert alert-warning d-flex align-items-center" id="alertaSimulado" style="display:none !important">
+    <i class="fas fa-flask fa-lg me-3"></i>
+    <div>
+        <b>Modo simulado activo.</b> Los códigos (CUIS, CUFD) y las validaciones provienen de un SIN simulado que sigue el Anexo Técnico,
+        pero las facturas <b>no tienen validez tributaria</b>. Los catálogos de productos y leyendas son datos de ejemplo.
+    </div>
+</div>
+
+<div class="row">
+    <!-- Paso 1: Emisor -->
+    <div class="col-xl-5 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white"><span class="badge bg-dark me-2">1</span><b>Datos del emisor</b></div>
+            <div class="card-body">
+                <div class="row g-2">
+                    <div class="col-md-5">
+                        <label class="form-label" for="txtNit">NIT</label>
+                        <input type="text" class="form-control" id="txtNit" maxlength="13" autocomplete="off">
+                    </div>
+                    <div class="col-md-7">
+                        <label class="form-label" for="txtRazonSocial">Razón social</label>
+                        <input type="text" class="form-control" id="txtRazonSocial" maxlength="200" autocomplete="off">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="txtCodigoSistema">Código de sistema</label>
+                        <input type="text" class="form-control" id="txtCodigoSistema" maxlength="50" autocomplete="off">
+                        <div class="form-text">Lo asigna el SIN al autorizar el sistema.</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="txtActividad">Actividad económica principal</label>
+                        <input type="text" class="form-control" id="txtActividad" maxlength="10" autocomplete="off">
+                        <div class="form-text">Código CAEB del Padrón.</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="cboAmbiente">Ambiente</label>
+                        <select class="form-select" id="cboAmbiente">
+                            <option value="2">2 - Pruebas y Piloto</option>
+                            <option value="1">1 - Producción</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="cboModalidad">Modalidad</label>
+                        <select class="form-select" id="cboModalidad">
+                            <option value="2">2 - Computarizada en Línea</option>
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label" for="txtToken">Token delegado (SIAT)</label>
+                        <input type="password" class="form-control" id="txtToken" autocomplete="new-password" placeholder="Solo para conectar con el SIN real">
+                    </div>
+                    <div class="col-12">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="chkSimulado">
+                            <label class="form-check-label" for="chkSimulado">Usar el SIN simulado</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-white text-end">
+                <button type="button" class="btn btn-primary" id="btnGuardarConfig"><i class="fas fa-save me-1"></i>Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Paso 3: Catálogos -->
+    <div class="col-xl-7 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <span><span class="badge bg-dark me-2">3</span><b>Catálogos del SIN</b></span>
+                <button type="button" class="btn btn-success btn-sm" id="btnSincronizar"><i class="fas fa-sync me-1"></i>Sincronizar ahora</button>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted">
+                    El SIN exige sincronizar los catálogos a diario. Requiere al menos una tienda con CUIS vigente (paso 2).
+                    Después de sincronizar, homologue sus productos en <a href="@Url.Action("Homologacion", "Facturacion")">Facturación &gt; Homologación</a>.
+                </p>
+                <table class="table table-sm table-striped mb-0" id="tablaCatalogos">
+                    <thead><tr><th>Catálogo</th><th class="text-end">Registros</th><th>Última sincronización</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Paso 2: Sucursales -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-white"><span class="badge bg-dark me-2">2</span><b>Sucursales, CUIS y CUFD</b></div>
+    <div class="card-body">
+        <p class="small text-muted">
+            Cada tienda debe corresponder a una sucursal del Padrón (0 = Casa Matriz). El <b>CUIS</b> dura 365 días;
+            el <b>CUFD</b> dura 24 horas y el sistema lo renueva automáticamente al facturar si venció.
+        </p>
+        <table id="tablaSucursales" class="display cell-border" style="width:100%">
+            <thead>
+                <tr>
+                    <th>Tienda</th>
+                    <th>Sucursal</th>
+                    <th>Punto de venta</th>
+                    <th>Municipio</th>
+                    <th>CUIS</th>
+                    <th>CUFD</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal sucursal -->
+<div class="modal fade" id="modalSucursal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title">Datos de sucursal - <span id="sucNombreTienda"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="sucIdTienda" value="0" />
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label class="form-label" for="sucCodigo">Código de sucursal</label>
+                        <input type="number" min="0" max="9999" class="form-control" id="sucCodigo">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label" for="sucPuntoVenta">Punto de venta</label>
+                        <input type="number" min="0" max="9999" class="form-control" id="sucPuntoVenta">
+                        <div class="form-text">0 = no corresponde.</div>
+                    </div>
+                    <div class="col-7">
+                        <label class="form-label" for="sucMunicipio">Municipio</label>
+                        <input type="text" class="form-control" id="sucMunicipio" maxlength="25">
+                    </div>
+                    <div class="col-5">
+                        <label class="form-label" for="sucTelefono">Teléfono</label>
+                        <input type="text" class="form-control" id="sucTelefono" maxlength="25">
+                    </div>
+                </div>
+                <div class="alert alert-info small mt-3 mb-0">Si cambia los códigos de sucursal o punto de venta, el CUIS y el CUFD actuales dejan de valer y debe solicitarlos de nuevo.</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnGuardarSucursal">Guardar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section scripts {
+    <script>
+        var tablaSucursales;
+        var nombresCatalogo = {
+            ACTIVIDAD_ECONOMICA: "Actividades económicas", PRODUCTO_SERVICIO: "Productos y servicios", LEYENDA_FACTURA: "Leyendas de factura",
+            UNIDAD_MEDIDA: "Unidades de medida", METODO_PAGO: "Métodos de pago", TIPO_DOCUMENTO_IDENTIDAD: "Tipos de documento de identidad",
+            TIPO_MONEDA: "Monedas", MOTIVO_ANULACION: "Motivos de anulación", EVENTO_SIGNIFICATIVO: "Eventos significativos",
+            MENSAJE_SERVICIO: "Mensajes de servicios", TIPO_EMISION: "Tipos de emisión", TIPO_FACTURA: "Tipos de factura", DOCUMENTO_SECTOR: "Documentos sector"
+        };
+
+        function escapar(texto) { return $("<span>").text(texto == null ? "" : texto).html(); }
+
+        function postJson(accion, datos) {
+            return $.ajax({
+                url: '@Url.Action("__A__", "Facturacion")'.replace("__A__", accion),
+                type: "POST",
+                data: JSON.stringify(datos || {}),
+                contentType: "application/json; charset=utf-8"
+            }).fail(function (xhr) {
+                Swal.fire("Error", (xhr.responseJSON && xhr.responseJSON.mensaje) || "Error de comunicación con el servidor.", "error");
+            });
+        }
+
+        function mostrarResultado(res, alExito) {
+            Swal.fire(res.resultado ? "Listo" : "Atención", res.mensaje, res.resultado ? "success" : "warning");
+            if (res.resultado && alExito) alExito();
+        }
+
+        function cargarConfiguracion() {
+            $.get('@Url.Action("ObtenerConfiguracion", "Facturacion")', function (res) {
+                if (!res.resultado) { Swal.fire("Configuración", res.mensaje, "warning"); return; }
+                var c = res.data;
+                $("#txtNit").val(c.nit);
+                $("#txtRazonSocial").val(c.razon_social);
+                $("#txtCodigoSistema").val(c.codigo_sistema);
+                $("#txtActividad").val(c.actividad_economica);
+                $("#cboAmbiente").val(c.codigo_ambiente);
+                $("#cboModalidad").val(c.codigo_modalidad);
+                $("#txtToken").val(c.token_delegado || "");
+                $("#chkSimulado").prop("checked", c.modo_simulado);
+                $("#alertaSimulado").attr("style", c.modo_simulado ? "" : "display:none !important");
+            });
+        }
+
+        function cargarCatalogos() {
+            $.get('@Url.Action("ResumenCatalogos", "Facturacion")', function (res) {
+                var $tb = $("#tablaCatalogos tbody").empty();
+                $.each(res.data, function (i, r) {
+                    $tb.append("<tr><td>" + (nombresCatalogo[r.tipo] || r.tipo) + '</td><td class="text-end">'
+                        + (r.cantidad > 0 ? r.cantidad : '<span class="badge bg-secondary">sin datos</span>')
+                        + "</td><td>" + (r.ultima_sincronizacion || "-") + "</td></tr>");
+                });
+            });
+        }
+
+        function badgeCodigo(c, etiqueta) {
+            if (!c) return '<span class="badge bg-secondary">sin ' + etiqueta + "</span>";
+            return '<span class="badge ' + (c.vigente ? "bg-success" : "bg-danger") + '">' + (c.vigente ? "vigente" : "vencido") + "</span>"
+                + '<div class="small text-muted">' + escapar(c.codigo) + "<br>hasta " + c.vigencia + "</div>";
+        }
+
+        $(function () {
+            cargarConfiguracion();
+            cargarCatalogos();
+
+            tablaSucursales = $("#tablaSucursales").DataTable({
+                responsive: true,
+                ordering: false,
+                paging: false,
+                searching: false,
+                info: false,
+                ajax: { url: '@Url.Action("ListarSucursales", "Facturacion")', type: "GET" },
+                columns: [
+                    { data: "nombre_tienda", render: function (v, t, r) { return "<b>" + escapar(v) + '</b><div class="small text-muted">' + escapar(r.direccion_tienda) + "</div>"; } },
+                    { data: "codigo_sucursal", render: function (v, t, r) { return r.configurada ? (v === 0 ? "0 (Casa Matriz)" : v) : '<span class="badge bg-warning text-dark">sin configurar</span>'; } },
+                    { data: "codigo_punto_venta", render: function (v, t, r) { return r.configurada ? v : "-"; } },
+                    { data: "municipio", render: function (v) { return escapar(v) || "-"; } },
+                    { data: "cuis", render: function (v) { return badgeCodigo(v, "CUIS"); } },
+                    { data: "cufd", render: function (v) { return badgeCodigo(v, "CUFD"); } },
+                    {
+                        data: null, width: "220px",
+                        render: function (d, t, r) {
+                            return '<button type="button" class="btn btn-outline-dark btn-sm btn-editar mb-1"><i class="fas fa-pen"></i> Datos</button> '
+                                + '<button type="button" class="btn btn-outline-primary btn-sm btn-cuis mb-1"' + (r.configurada ? "" : " disabled") + '>CUIS</button> '
+                                + '<button type="button" class="btn btn-outline-primary btn-sm btn-cufd mb-1"' + (r.cuis && r.cuis.vigente ? "" : " disabled") + ">CUFD</button>";
+                        }
+                    }
+                ]
+            });
+        });
+
+        function filaSucursal(boton) {
+            var $tr = $(boton).closest("tr");
+            if ($tr.hasClass("child")) $tr = $tr.prev();
+            return tablaSucursales.row($tr).data();
+        }
+
+        $("#btnGuardarConfig").on("click", function () {
+            var nit = $.trim($("#txtNit").val());
+            if (!/^\d{1,13}$/.test(nit)) { Swal.fire("Atención", "El NIT debe ser numérico (máximo 13 dígitos).", "warning"); return; }
+            postJson("GuardarConfiguracion", {
+                objeto: {
+                    nit: nit,
+                    razon_social: $.trim($("#txtRazonSocial").val()),
+                    codigo_sistema: $.trim($("#txtCodigoSistema").val()),
+                    actividad_economica: $.trim($("#txtActividad").val()),
+                    codigo_ambiente: parseInt($("#cboAmbiente").val()),
+                    codigo_modalidad: parseInt($("#cboModalidad").val()),
+                    token_delegado: $("#txtToken").val(),
+                    modo_simulado: $("#chkSimulado").is(":checked")
+                }
+            }).done(function (res) { mostrarResultado(res, cargarConfiguracion); });
+        });
+
+        $("#btnSincronizar").on("click", function () {
+            var $btn = $(this).prop("disabled", true);
+            postJson("SincronizarCatalogos").done(function (res) { mostrarResultado(res); cargarCatalogos(); })
+                .always(function () { $btn.prop("disabled", false); });
+        });
+
+        $("#tablaSucursales tbody").on("click", ".btn-editar", function () {
+            var d = filaSucursal(this);
+            $("#sucIdTienda").val(d.id_tienda);
+            $("#sucNombreTienda").text(d.nombre_tienda);
+            $("#sucCodigo").val(d.configurada ? d.codigo_sucursal : 0);
+            $("#sucPuntoVenta").val(d.configurada ? d.codigo_punto_venta : 0);
+            $("#sucMunicipio").val(d.municipio || "");
+            $("#sucTelefono").val(d.telefono || "");
+            $("#modalSucursal").modal("show");
+        });
+
+        $("#btnGuardarSucursal").on("click", function () {
+            postJson("GuardarSucursal", {
+                objeto: {
+                    id_tienda: parseInt($("#sucIdTienda").val()),
+                    codigo_sucursal: parseInt($("#sucCodigo").val() || "0"),
+                    codigo_punto_venta: parseInt($("#sucPuntoVenta").val() || "0"),
+                    municipio: $.trim($("#sucMunicipio").val()),
+                    telefono: $.trim($("#sucTelefono").val())
+                }
+            }).done(function (res) {
+                if (res.resultado) $("#modalSucursal").modal("hide");
+                mostrarResultado(res, function () { tablaSucursales.ajax.reload(); });
+            });
+        });
+
+        $("#tablaSucursales tbody").on("click", ".btn-cuis", function () {
+            postJson("SolicitarCuis", { idTienda: filaSucursal(this).id_tienda })
+                .done(function (res) { mostrarResultado(res); tablaSucursales.ajax.reload(); });
+        });
+
+        $("#tablaSucursales tbody").on("click", ".btn-cufd", function () {
+            postJson("SolicitarCufd", { idTienda: filaSucursal(this).id_tienda })
+                .done(function (res) { mostrarResultado(res); tablaSucursales.ajax.reload(); });
+        });
+    </script>
+}

@@ -38,6 +38,7 @@
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Data" />
     <Reference Include="System.Net.Http" />
+    <Reference Include="System.Numerics" />
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
@@ -59,7 +60,19 @@
     <Compile Include="CN_UnidadMedida.cs" />
     <Compile Include="CN_Usuarios.cs" />
     <Compile Include="CN_Venta.cs" />
+    <Compile Include="Facturacion\AlgoritmosSiat.cs" />
+    <Compile Include="Facturacion\GeneradorXmlFactura.cs" />
+    <Compile Include="Facturacion\NumeroALetras.cs" />
+    <Compile Include="Facturacion\CN_ConfiguracionFacturacion.cs" />
+    <Compile Include="Facturacion\CN_Factura.cs" />
+    <Compile Include="Facturacion\Siat\ISiatServicio.cs" />
+    <Compile Include="Facturacion\Siat\CatalogosSimulados.cs" />
+    <Compile Include="Facturacion\Siat\SiatServicioSimulado.cs" />
+    <Compile Include="Facturacion\Siat\SiatServicioFactory.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Facturacion\Esquemas\facturaComputarizadaCompraVenta.xsd" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\CapaDatos\CapaDatos.csproj">

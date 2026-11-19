@@ -1,0 +1,228 @@
+@model CapaPresentacionAdmin.ViewModels.RepresentacionFacturaViewModel
+@{
+    Layout = null;
+    var f = Model.oFactura;
+    bool rollo = Model.formato == "rollo";
+    string sucursal = f.codigo_sucursal == 0 ? "CASA MATRIZ" : "SUCURSAL N° " + f.codigo_sucursal;
+    Func<decimal, string> bs = v => v.ToString("N2", System.Globalization.CultureInfo.GetCultureInfo("es-BO"));
+    decimal subtotal = f.oDetalle.Sum(d => d.sub_total);
+}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Factura @f.numero_factura - @f.razon_social_emisor</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: Arial, Helvetica, sans-serif; color: #000; background: #e9ecef; margin: 0; padding: 16px; font-size: 11px; }
+        .hoja { background: #fff; margin: 0 auto; padding: 24px; position: relative; overflow: hidden; }
+        .hoja.carta { width: 216mm; min-height: 279mm; }
+        .hoja.rollo { width: 80mm; padding: 10px; font-size: 10px; }
+        .acciones { text-align: center; margin-bottom: 12px; }
+        .acciones button, .acciones a { font-size: 13px; padding: 6px 14px; margin: 0 4px; cursor: pointer; }
+        .marca-agua { position: absolute; top: 40%; left: -10%; width: 120%; text-align: center; transform: rotate(-25deg);
+                      font-size: 46px; font-weight: bold; color: rgba(200, 0, 0, .12); pointer-events: none; }
+        .rollo .marca-agua { font-size: 20px; }
+        .centro { text-align: center; }
+        .derecha { text-align: right; }
+        .negrita { font-weight: bold; }
+        .titulo { font-size: 16px; font-weight: bold; margin: 10px 0 0; }
+        .rollo .titulo { font-size: 13px; }
+        .encabezado { display: flex; justify-content: space-between; gap: 16px; }
+        .caja { border: 1px solid #000; padding: 6px 10px; min-width: 260px; }
+        .caja td { padding: 1px 4px; vertical-align: top; }
+        .cuf { word-break: break-all; }
+        table.datos { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        table.detalle { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .carta table.detalle th, .carta table.detalle td { border: 1px solid #000; padding: 3px 5px; }
+        .carta table.detalle th { background: #f1f1f1; }
+        .rollo table.detalle td { padding: 2px 0; vertical-align: top; }
+        .separador { border-top: 1px dashed #000; margin: 8px 0; }
+        .totales { width: 100%; margin-top: 6px; border-collapse: collapse; }
+        .totales td { padding: 2px 5px; }
+        .carta .totales { width: 45%; margin-left: auto; }
+        .leyendas { margin-top: 14px; font-size: 10px; }
+        .leyendas p { margin: 4px 0; }
+        .pie { display: flex; align-items: center; gap: 16px; margin-top: 12px; }
+        .rollo .pie { flex-direction: column; }
+        #qr { padding: 4px; background: #fff; }
+        .estado-anulada { color: #c00; font-size: 18px; font-weight: bold; border: 3px solid #c00; display: inline-block; padding: 2px 12px; margin-top: 6px; }
+        @@media print {
+            body { background: #fff; padding: 0; }
+            .acciones { display: none; }
+            .hoja { margin: 0; padding: 0; }
+            @(rollo ? "@page { size: 80mm auto; margin: 3mm; }" : "@page { size: letter; margin: 12mm; }")
+        }
+    </style>
+</head>
+<body>
+    <div class="acciones">
+        <button type="button" onclick="window.print()">🖨 Imprimir</button>
+        <a href="@Url.Action("Representacion", "Facturacion", new { id = f.id_factura, formato = rollo ? "carta" : "rollo" })">Ver en formato @(rollo ? "carta" : "rollo 80 mm")</a>
+        <a href="@Url.Action("DescargarXml", "Facturacion", new { id = f.id_factura })">Descargar XML</a>
+    </div>
+
+    <div class="hoja @Model.formato">
+        @if (Model.es_simulado)
+        {
+            <div class="marca-agua">SIN VALIDEZ TRIBUTARIA<br />MODO SIMULADO</div>
+        }
+
+        @if (rollo)
+        {
+            <div class="centro">
+                <div class="titulo">FACTURA</div>
+                <div>CON DERECHO A CRÉDITO FISCAL</div>
+                <div class="negrita" style="margin-top:6px">@f.razon_social_emisor</div>
+                <div>@sucursal</div>
+                <div>No. Punto de Venta @f.codigo_punto_venta</div>
+                <div>@f.direccion</div>
+                @if (!string.IsNullOrEmpty(f.telefono)) { <div>Tel. @f.telefono</div> }
+                <div>@f.municipio</div>
+            </div>
+            <div class="separador"></div>
+            <div class="centro">
+                <div class="negrita">NIT</div><div>@f.nit_emisor</div>
+                <div class="negrita">FACTURA N°</div><div>@f.numero_factura</div>
+                <div class="negrita">CÓD. AUTORIZACIÓN</div><div class="cuf">@f.cuf</div>
+            </div>
+            <div class="separador"></div>
+            <table class="datos">
+                <tr><td class="negrita">NOMBRE/RAZÓN SOCIAL:</td><td>@f.nombre_razon_social</td></tr>
+                <tr><td class="negrita">NIT/CI/CEX:</td><td>@f.numero_documento@(string.IsNullOrEmpty(f.complemento) ? "" : "-" + f.complemento)</td></tr>
+                <tr><td class="negrita">COD. CLIENTE:</td><td>@f.codigo_cliente</td></tr>
+                <tr><td class="negrita">FECHA DE EMISIÓN:</td><td>@f.fecha_emision.ToString("dd/MM/yyyy hh:mm tt")</td></tr>
+            </table>
+            <div class="separador"></div>
+            <div class="centro negrita">DETALLE</div>
+            <table class="detalle">
+                @foreach (var d in f.oDetalle)
+                {
+                    <tr><td colspan="2"><b>@d.codigo_producto - @d.descripcion</b></td></tr>
+                    <tr><td colspan="2">Unidad de Medida: @(d.descripcion_unidad_medida ?? d.unidad_medida.ToString())</td></tr>
+                    <tr>
+                        <td>@bs(d.cantidad) X @bs(d.precio_unitario) - @bs(d.monto_descuento)</td>
+                        <td class="derecha">@bs(d.sub_total)</td>
+                    </tr>
+                }
+            </table>
+            <div class="separador"></div>
+        }
+        else
+        {
+            <div class="encabezado">
+                <div>
+                    <div class="negrita" style="font-size:13px">@f.razon_social_emisor</div>
+                    <div>@sucursal</div>
+                    <div>No. Punto de Venta @f.codigo_punto_venta</div>
+                    <div>@f.direccion</div>
+                    @if (!string.IsNullOrEmpty(f.telefono)) { <div>Teléfono: @f.telefono</div> }
+                    <div>@f.municipio</div>
+                </div>
+                <div class="caja">
+                    <table>
+                        <tr><td class="negrita">NIT</td><td>@f.nit_emisor</td></tr>
+                        <tr><td class="negrita">FACTURA N°</td><td>@f.numero_factura</td></tr>
+                        <tr><td class="negrita">CÓD. AUTORIZACIÓN</td><td class="cuf" style="max-width:190px">@f.cuf</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="centro">
+                <div class="titulo">FACTURA</div>
+                <div>(Con Derecho a Crédito Fiscal)</div>
+            </div>
+
+            <table class="datos">
+                <tr>
+                    <td class="negrita" style="width:22%">Fecha:</td>
+                    <td style="width:38%">@f.fecha_emision.ToString("dd/MM/yyyy hh:mm tt")</td>
+                    <td class="negrita" style="width:18%">NIT/CI/CEX:</td>
+                    <td>@f.numero_documento</td>
+                </tr>
+                <tr>
+                    <td class="negrita">Nombre/Razón Social:</td>
+                    <td>@f.nombre_razon_social</td>
+                    <td class="negrita">Complemento:</td>
+                    <td>@(f.complemento ?? "")</td>
+                </tr>
+                <tr>
+                    <td class="negrita">Método de pago:</td>
+                    <td>@Model.descripcion_metodo_pago @(string.IsNullOrEmpty(f.numero_tarjeta) ? "" : "(" + f.numero_tarjeta + ")")</td>
+                    <td class="negrita">Cod. Cliente:</td>
+                    <td>@f.codigo_cliente</td>
+                </tr>
+            </table>
+
+            <table class="detalle">
+                <thead>
+                    <tr>
+                        <th>CÓDIGO PRODUCTO / SERVICIO</th>
+                        <th>CANTIDAD</th>
+                        <th>UNIDAD DE MEDIDA</th>
+                        <th>DESCRIPCIÓN</th>
+                        <th>PRECIO UNITARIO</th>
+                        <th>DESCUENTO</th>
+                        <th>SUBTOTAL</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var d in f.oDetalle)
+                    {
+                        <tr>
+                            <td>@d.codigo_producto</td>
+                            <td class="derecha">@bs(d.cantidad)</td>
+                            <td>@(d.descripcion_unidad_medida ?? d.unidad_medida.ToString())</td>
+                            <td>@d.descripcion</td>
+                            <td class="derecha">@bs(d.precio_unitario)</td>
+                            <td class="derecha">@bs(d.monto_descuento)</td>
+                            <td class="derecha">@bs(d.sub_total)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        <table class="totales">
+            <tr><td>SUBTOTAL Bs</td><td class="derecha">@bs(subtotal)</td></tr>
+            <tr><td>DESCUENTO Bs</td><td class="derecha">@bs(f.descuento_adicional)</td></tr>
+            <tr><td>TOTAL Bs</td><td class="derecha">@bs(f.monto_total)</td></tr>
+            <tr><td>MONTO GIFT CARD Bs</td><td class="derecha">0,00</td></tr>
+            <tr class="negrita"><td>MONTO A PAGAR Bs</td><td class="derecha">@bs(f.monto_total)</td></tr>
+            <tr class="negrita"><td>IMPORTE BASE CRÉDITO FISCAL</td><td class="derecha">@bs(f.monto_total_sujeto_iva)</td></tr>
+        </table>
+
+        <p><b>Son:</b> @Model.monto_literal</p>
+
+        @if (f.estado == CapaEntidad.Facturacion.EstadoFactura.Anulada)
+        {
+            <div class="centro"><span class="estado-anulada">ANULADA</span></div>
+        }
+        else if (f.estado != CapaEntidad.Facturacion.EstadoFactura.Validada)
+        {
+            <div class="centro"><span class="estado-anulada" style="color:#b8860b;border-color:#b8860b">@f.estado</span></div>
+        }
+
+        <div class="pie">
+            <div class="leyendas" style="flex:1">
+                <p class="centro negrita">@Model.leyenda_principal</p>
+                <p class="centro">@f.leyenda</p>
+                <p class="centro">@Model.leyenda_modalidad</p>
+            </div>
+            <div id="qr" title="@Model.url_qr"></div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script>
+        // QR de verificación en el portal del SIN (mínimo recomendado: 3 x 3 cm ≈ 113 px).
+        new QRCode(document.getElementById("qr"), {
+            text: @Html.Raw(Json.Encode(Model.url_qr)),
+            width: @(rollo ? 120 : 130),
+            height: @(rollo ? 120 : 130),
+            correctLevel: QRCode.CorrectLevel.M
+        });
+    </script>
+</body>
+</html>

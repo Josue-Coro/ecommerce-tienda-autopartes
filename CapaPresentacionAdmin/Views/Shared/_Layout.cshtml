@@ -22,6 +22,8 @@
          ViewContext.RouteData.Values["action"]?.ToString() == "Proveedores" ||
          ViewContext.RouteData.Values["action"]?.ToString() == "Stock");
 
+    var esFacturacion = controlador == "Facturacion";
+
     var esReporte = controlador == "Operaciones" &&
         (ViewContext.RouteData.Values["action"]?.ToString() == "ReporteVentas" ||
          ViewContext.RouteData.Values["action"]?.ToString() == "ReporteCompras");
@@ -32,6 +34,8 @@
     bool puedeVerMantenedor = nombreRolUsuario == "ADMINISTRADOR" || nombreRolUsuario == "GERENTE"; 
     bool puedeVerOperaciones = nombreRolUsuario == "ADMINISTRADOR" || nombreRolUsuario == "VENDEDOR" || nombreRolUsuario == "GERENTE"; 
     bool puedeVerReportes = nombreRolUsuario == "ADMINISTRADOR" || nombreRolUsuario == "GERENTE"; 
+    bool puedeVerFacturacion = puedeVerOperaciones;
+    bool puedeConfigurarFacturacion = nombreRolUsuario == "ADMINISTRADOR" || nombreRolUsuario == "GERENTE";
 }
 
 <!DOCTYPE html>
@@ -220,6 +224,33 @@
                                     <a class="nav-link @(ViewContext.RouteData.Values["action"]?.ToString() == "Stock" ? "active" : "")" href="@Url.Action("Stock","Operaciones")">
                                         <i class="fas fa-boxes me-2"></i>Stock / Inventario
                                     </a>
+                                </nav>
+                            </div>
+                        }
+
+                        @* SECCIÓN DE FACTURACIÓN *@
+                        @if (puedeVerFacturacion)
+                        {
+                            <div class="sb-sidenav-menu-heading">FACTURACIÓN</div>
+                            <a class="nav-link @(esFacturacion ? "" : "collapsed")" href="#" data-bs-toggle="collapse" data-bs-target="#collapseFacturacion" aria-expanded="@(esFacturacion.ToString().ToLower())" aria-controls="collapseFacturacion">
+                                <div class="sb-nav-link-icon"><i class="fas fa-file-invoice"></i></div>
+                                Facturación
+                                <div class="sb-sidenav-collapse-arrow"><i class="fas fa-angle-down"></i></div>
+                            </a>
+                            <div class="collapse @(esFacturacion ? "show" : "")" id="collapseFacturacion" aria-labelledby="headingOne" data-bs-parent="#sidenavAccordion">
+                                <nav class="sb-sidenav-menu-nested nav">
+                                    <a class="nav-link @(esFacturacion && ViewContext.RouteData.Values["action"]?.ToString() == "Facturas" ? "active" : "")" href="@Url.Action("Facturas","Facturacion")">
+                                        <i class="fas fa-file-invoice-dollar me-2"></i>Facturas
+                                    </a>
+                                    @if (puedeConfigurarFacturacion)
+                                    {
+                                        <a class="nav-link @(esFacturacion && ViewContext.RouteData.Values["action"]?.ToString() == "Homologacion" ? "active" : "")" href="@Url.Action("Homologacion","Facturacion")">
+                                            <i class="fas fa-exchange-alt me-2"></i>Homologación SIN
+                                        </a>
+                                        <a class="nav-link @(esFacturacion && ViewContext.RouteData.Values["action"]?.ToString() == "Configuracion" ? "active" : "")" href="@Url.Action("Configuracion","Facturacion")">
+                                            <i class="fas fa-sliders-h me-2"></i>Configuración
+                                        </a>
+                                    }
                                 </nav>
                             </div>
                         }

@@ -199,6 +199,8 @@
     </div>
 </div>
 
+@Html.Partial("~/Views/Facturacion/_ModalEmitirFactura.cshtml")
+
 @section Scripts {
     <script>
         var listaClientesGlobal = [];
@@ -422,8 +424,17 @@
                 success: function (data) {
                     $(".card-body").LoadingOverlay("hide");
                     if (data.operacionExitosa) {
-                        Swal.fire("Venta Registrada", "La venta #" + data.idVenta + " se guardó correctamente.", "success");
                         limpiarTodo();
+                        Swal.fire({
+                            icon: "success",
+                            title: "Venta Registrada",
+                            text: "La venta #" + data.idVenta + " se guardó correctamente. ¿Desea emitir la factura ahora?",
+                            showCancelButton: true,
+                            confirmButtonText: '<i class="fas fa-file-invoice"></i> Emitir factura',
+                            cancelButtonText: "Más tarde"
+                        }).then(function (r) {
+                            if (r.isConfirmed) abrirEmisionFactura(data.idVenta);
+                        });
                     } else {
                         Swal.fire("Error", data.mensaje, "error");
                     }
