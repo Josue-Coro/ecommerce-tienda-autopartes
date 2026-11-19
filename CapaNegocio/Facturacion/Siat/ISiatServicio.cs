@@ -32,5 +32,24 @@ namespace CapaNegocio.Facturacion.Siat
 
         /// <summary>Servicio "anulacionFactura".</summary>
         RespuestaRecepcion AnulacionFactura(SolicitudAnulacionFactura solicitud);
+
+        /// <summary>Servicio "registroEventoSignificativo" (informa la contingencia ya superada).</summary>
+        RespuestaEvento RegistroEventoSignificativo(SolicitudEventoSignificativo solicitud);
+
+        /// <summary>Servicio "recepcionPaqueteFactura" (paquete .tar.gz de hasta 500 facturas fuera de línea).</summary>
+        RespuestaRecepcion RecepcionPaqueteFactura(SolicitudRecepcionPaquete solicitud);
+
+        /// <summary>Servicio "validacionRecepcionPaqueteFactura".</summary>
+        RespuestaRecepcion ValidacionRecepcionPaqueteFactura(SolicitudValidacionPaquete solicitud);
+    }
+
+    /// <summary>
+    /// El SIN no respondió (time out, error 500, sin internet...). Quien la recibe debe pasar a
+    /// emitir fuera de línea, como indica el anexo en "Ingreso a Contingencia".
+    /// </summary>
+    public class SiatSinConexionException : System.Exception
+    {
+        public SiatSinConexionException(string mensaje) : base(mensaje) { }
+        public SiatSinConexionException(string mensaje, System.Exception interna) : base(mensaje, interna) { }
     }
 }

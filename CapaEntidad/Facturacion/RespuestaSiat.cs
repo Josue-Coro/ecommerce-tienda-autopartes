@@ -9,9 +9,12 @@ namespace CapaEntidad.Facturacion
         public int codigo { get; set; }
         public string descripcion { get; set; }
 
+        /// <summary>En la validación de paquetes: posición (base 0) del archivo observado; null si no aplica.</summary>
+        public int? numero_archivo { get; set; }
+
         public override string ToString()
         {
-            return codigo + " - " + descripcion;
+            return (numero_archivo.HasValue ? "[archivo " + numero_archivo + "] " : "") + codigo + " - " + descripcion;
         }
     }
 

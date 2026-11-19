@@ -150,6 +150,7 @@
                             var extra = "";
                             if (v === "OBSERVADA" && row.mensajes) extra = ' <i class="fas fa-info-circle text-warning btn-ver-mensajes" role="button" title="Ver observaciones"></i>';
                             if (v === "ANULADA" && row.motivo_anulacion) extra = '<div class="small text-muted">' + escapar(row.motivo_anulacion) + "</div>";
+                            if (row.tipo_emision === 2) extra += ' <span class="badge bg-secondary" title="Emitida durante la contingencia #' + row.id_evento + '"><i class="fas fa-plug"></i> fuera de línea</span>';
                             return '<span class="badge ' + (coloresEstado[v] || "bg-secondary") + '">' + v + "</span>" + extra;
                         }
                     },

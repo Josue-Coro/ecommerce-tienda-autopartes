@@ -280,6 +280,60 @@ IF TYPE_ID('FACTURACION.DetalleFacturaTipo') IS NULL
     );
 GO
 
+/* -------------------------------------------------------------------------------------
+   8. CONTINGENCIA: EVENTOS SIGNIFICATIVOS Y PAQUETES (emisión fuera de línea)
+   ------------------------------------------------------------------------------------- */
+IF COL_LENGTH('FACTURACION.CONFIGURACION', 'simular_sin_conexion') IS NULL
+    ALTER TABLE FACTURACION.CONFIGURACION
+        ADD simular_sin_conexion BIT NOT NULL CONSTRAINT CONFIGURACION_DF_SIN_CONEXION DEFAULT (0);
+GO
+
+IF OBJECT_ID('FACTURACION.EVENTO_SIGNIFICATIVO', 'U') IS NULL
+    CREATE TABLE FACTURACION.EVENTO_SIGNIFICATIVO (
+        id_evento                INT IDENTITY(1,1) NOT NULL CONSTRAINT EVENTO_PK PRIMARY KEY,
+        TIENDA_id_tienda         INT           NOT NULL,
+        codigo_evento            INT           NOT NULL,   -- catálogo EVENTO_SIGNIFICATIVO (1..7)
+        descripcion              VARCHAR(500)  NOT NULL,
+        fecha_inicio             DATETIME2(3)  NOT NULL,
+        fecha_fin                DATETIME2(3)  NULL,
+        cufd_evento              VARCHAR(100)  NOT NULL,   -- CUFD vigente al ingresar en contingencia
+        codigo_control_evento    VARCHAR(50)   NOT NULL,
+        automatico               BIT           NOT NULL CONSTRAINT EVENTO_DF_AUTOMATICO DEFAULT (0),
+        estado                   VARCHAR(20)   NOT NULL,   -- ABIERTO, REGISTRADO, VALIDADO, OBSERVADO
+        codigo_recepcion_evento  VARCHAR(100)  NULL,
+        mensajes                 VARCHAR(MAX)  NULL,
+        CONSTRAINT EVENTO_SUCURSAL_FK FOREIGN KEY (TIENDA_id_tienda) REFERENCES FACTURACION.SUCURSAL (TIENDA_id_tienda)
+    );
+GO
+
+-- Solo puede haber un evento abierto por tienda.
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'EVENTO_UQ_ABIERTO')
+    CREATE UNIQUE INDEX EVENTO_UQ_ABIERTO ON FACTURACION.EVENTO_SIGNIFICATIVO (TIENDA_id_tienda) WHERE estado = 'ABIERTO';
+GO
+
+IF COL_LENGTH('FACTURACION.FACTURA', 'EVENTO_id_evento') IS NULL
+BEGIN
+    ALTER TABLE FACTURACION.FACTURA ADD EVENTO_id_evento INT NULL;
+    ALTER TABLE FACTURACION.FACTURA ADD CONSTRAINT FACTURA_EVENTO_FK
+        FOREIGN KEY (EVENTO_id_evento) REFERENCES FACTURACION.EVENTO_SIGNIFICATIVO (id_evento);
+END
+GO
+
+IF OBJECT_ID('FACTURACION.PAQUETE', 'U') IS NULL
+    CREATE TABLE FACTURACION.PAQUETE (
+        id_paquete         INT IDENTITY(1,1) NOT NULL CONSTRAINT PAQUETE_PK PRIMARY KEY,
+        EVENTO_id_evento   INT           NOT NULL,
+        cantidad_facturas  INT           NOT NULL,
+        hash_archivo       VARCHAR(64)   NOT NULL,
+        codigo_recepcion   VARCHAR(100)  NULL,
+        codigo_estado      INT           NOT NULL,
+        estado             VARCHAR(20)   NOT NULL,   -- VALIDADO, OBSERVADO, RECHAZADO
+        mensajes           VARCHAR(MAX)  NULL,
+        fecha_envio        DATETIME      NOT NULL CONSTRAINT PAQUETE_DF_FECHA DEFAULT (GETDATE()),
+        CONSTRAINT PAQUETE_EVENTO_FK FOREIGN KEY (EVENTO_id_evento) REFERENCES FACTURACION.EVENTO_SIGNIFICATIVO (id_evento)
+    );
+GO
+
 /* =====================================================================================
    PROCEDIMIENTOS ALMACENADOS
    ===================================================================================== */
@@ -290,7 +344,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
     SELECT nit, razon_social, codigo_sistema, codigo_ambiente, codigo_modalidad, actividad_economica,
-           modo_simulado, token_delegado, fecha_actualizacion
+           modo_simulado, token_delegado, fecha_actualizacion, simular_sin_conexion
     FROM FACTURACION.CONFIGURACION
     WHERE id_configuracion = 1;
 END
@@ -727,6 +781,7 @@ CREATE OR ALTER PROCEDURE FACTURACION.RegistrarFactura
     @CodigoEstado          INT,
     @Mensajes              VARCHAR(MAX),
     @Detalle               FACTURACION.DetalleFacturaTipo READONLY,
+    @IdEvento              INT = NULL,
     @Mensaje               VARCHAR(500) OUTPUT,
     @Resultado             INT OUTPUT
 AS
@@ -742,14 +797,16 @@ BEGIN
             tipo_emision, tipo_factura, codigo_documento_sector, nombre_razon_social, codigo_tipo_documento,
             numero_documento, complemento, codigo_cliente, correo_cliente, codigo_metodo_pago, numero_tarjeta,
             monto_total, monto_total_sujeto_iva, descuento_adicional, codigo_moneda, tipo_cambio, monto_total_moneda,
-            codigo_excepcion, leyenda, usuario, archivo_xml, hash_archivo, codigo_recepcion, estado, codigo_estado, mensajes)
+            codigo_excepcion, leyenda, usuario, archivo_xml, hash_archivo, codigo_recepcion, estado, codigo_estado, mensajes,
+            EVENTO_id_evento)
         VALUES (
             @IdVenta, @IdTienda, @NitEmisor, @RazonSocialEmisor, @Municipio, @Telefono, @Direccion,
             @CodigoSucursal, @CodigoPuntoVenta, @NumeroFactura, @Cuf, @Cufd, @FechaEmision, @CodigoModalidad,
             @TipoEmision, @TipoFactura, @CodigoDocumentoSector, @NombreRazonSocial, @CodigoTipoDocumento,
             @NumeroDocumento, @Complemento, @CodigoCliente, @CorreoCliente, @CodigoMetodoPago, @NumeroTarjeta,
             @MontoTotal, @MontoTotalSujetoIva, @DescuentoAdicional, @CodigoMoneda, @TipoCambio, @MontoTotalMoneda,
-            @CodigoExcepcion, @Leyenda, @Usuario, @ArchivoXml, @HashArchivo, @CodigoRecepcion, @Estado, @CodigoEstado, @Mensajes);
+            @CodigoExcepcion, @Leyenda, @Usuario, @ArchivoXml, @HashArchivo, @CodigoRecepcion, @Estado, @CodigoEstado, @Mensajes,
+            @IdEvento);
 
         DECLARE @IdFactura INT = SCOPE_IDENTITY();
 
@@ -784,7 +841,7 @@ BEGIN
            F.fecha_emision, F.nombre_razon_social, F.codigo_tipo_documento, F.numero_documento, F.complemento,
            F.monto_total, F.estado, F.codigo_estado, F.codigo_recepcion, F.mensajes, F.tipo_emision,
            F.fecha_anulacion, F.codigo_motivo_anulacion, MA.descripcion AS motivo_anulacion, F.codigo_sucursal,
-           F.codigo_punto_venta, F.correo_cliente
+           F.codigo_punto_venta, F.correo_cliente, F.EVENTO_id_evento AS id_evento
     FROM FACTURACION.FACTURA F
     LEFT JOIN FACTURACION.CATALOGO MA ON MA.tipo = 'MOTIVO_ANULACION' AND MA.codigo = CAST(F.codigo_motivo_anulacion AS VARCHAR(20))
     WHERE (@FechaInicio IS NULL OR CAST(F.fecha_emision AS DATE) >= @FechaInicio)
@@ -827,6 +884,131 @@ BEGIN
     WHERE id_factura = @IdFactura AND estado = 'VALIDADA';
 
     SELECT @@ROWCOUNT AS filas_afectadas;
+END
+GO
+
+-- ---------- Contingencia ----------
+CREATE OR ALTER PROCEDURE FACTURACION.GuardarSimulacionSinConexion
+    @SimularSinConexion  BIT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE FACTURACION.CONFIGURACION SET simular_sin_conexion = @SimularSinConexion WHERE id_configuracion = 1;
+END
+GO
+
+CREATE OR ALTER PROCEDURE FACTURACION.IniciarEvento
+    @IdTienda             INT,
+    @CodigoEvento         INT,
+    @Descripcion          VARCHAR(500),
+    @FechaInicio          DATETIME2(3),
+    @CufdEvento           VARCHAR(100),
+    @CodigoControlEvento  VARCHAR(50),
+    @Automatico           BIT,
+    @Mensaje              VARCHAR(500) OUTPUT,
+    @Resultado            INT OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET @Resultado = 0;
+
+    IF EXISTS (SELECT 1 FROM FACTURACION.EVENTO_SIGNIFICATIVO WHERE TIENDA_id_tienda = @IdTienda AND estado = 'ABIERTO')
+    BEGIN
+        SET @Mensaje = 'La tienda ya tiene una contingencia abierta.';
+        SELECT @Resultado = id_evento FROM FACTURACION.EVENTO_SIGNIFICATIVO WHERE TIENDA_id_tienda = @IdTienda AND estado = 'ABIERTO';
+        SET @Resultado = -@Resultado;   -- negativo: ya existía
+        RETURN;
+    END
+
+    INSERT INTO FACTURACION.EVENTO_SIGNIFICATIVO (TIENDA_id_tienda, codigo_evento, descripcion, fecha_inicio, cufd_evento,
+                                                  codigo_control_evento, automatico, estado)
+    VALUES (@IdTienda, @CodigoEvento, @Descripcion, @FechaInicio, @CufdEvento, @CodigoControlEvento, @Automatico, 'ABIERTO');
+
+    SET @Resultado = SCOPE_IDENTITY();
+    SET @Mensaje = 'Contingencia iniciada.';
+END
+GO
+
+CREATE OR ALTER PROCEDURE FACTURACION.ListarEventos
+    @IdTienda  INT = NULL,
+    @IdEvento  INT = NULL,
+    @SoloAbiertos BIT = 0
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT E.id_evento, E.TIENDA_id_tienda AS id_tienda, T.nombre AS nombre_tienda, E.codigo_evento,
+           C.descripcion AS descripcion_evento, E.descripcion, E.fecha_inicio, E.fecha_fin, E.cufd_evento,
+           E.codigo_control_evento, E.automatico, E.estado, E.codigo_recepcion_evento, E.mensajes,
+           (SELECT COUNT(*) FROM FACTURACION.FACTURA F WHERE F.EVENTO_id_evento = E.id_evento) AS cantidad_facturas,
+           (SELECT COUNT(*) FROM FACTURACION.FACTURA F WHERE F.EVENTO_id_evento = E.id_evento AND F.estado = 'PENDIENTE') AS facturas_pendientes
+    FROM FACTURACION.EVENTO_SIGNIFICATIVO E
+    INNER JOIN INVENTARIO.TIENDA T ON T.id_tienda = E.TIENDA_id_tienda
+    LEFT JOIN FACTURACION.CATALOGO C ON C.tipo = 'EVENTO_SIGNIFICATIVO' AND C.codigo = CAST(E.codigo_evento AS VARCHAR(20))
+    WHERE (@IdTienda IS NULL OR E.TIENDA_id_tienda = @IdTienda)
+      AND (@IdEvento IS NULL OR E.id_evento = @IdEvento)
+      AND (@SoloAbiertos = 0 OR E.estado = 'ABIERTO')
+    ORDER BY E.id_evento DESC;
+END
+GO
+
+CREATE OR ALTER PROCEDURE FACTURACION.ActualizarEvento
+    @IdEvento               INT,
+    @Estado                 VARCHAR(20),
+    @FechaFin               DATETIME2(3) = NULL,
+    @CodigoRecepcionEvento  VARCHAR(100) = NULL,
+    @Mensajes               VARCHAR(MAX) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE FACTURACION.EVENTO_SIGNIFICATIVO
+    SET estado = @Estado,
+        fecha_fin = ISNULL(@FechaFin, fecha_fin),
+        codigo_recepcion_evento = ISNULL(@CodigoRecepcionEvento, codigo_recepcion_evento),
+        mensajes = @Mensajes
+    WHERE id_evento = @IdEvento;
+END
+GO
+
+CREATE OR ALTER PROCEDURE FACTURACION.ListarFacturasPendientesEvento
+    @IdEvento  INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT id_factura, numero_factura, archivo_xml
+    FROM FACTURACION.FACTURA
+    WHERE EVENTO_id_evento = @IdEvento AND estado = 'PENDIENTE'
+    ORDER BY numero_factura;
+END
+GO
+
+CREATE OR ALTER PROCEDURE FACTURACION.RegistrarPaquete
+    @IdEvento          INT,
+    @CantidadFacturas  INT,
+    @HashArchivo       VARCHAR(64),
+    @CodigoRecepcion   VARCHAR(100),
+    @CodigoEstado      INT,
+    @Estado            VARCHAR(20),
+    @Mensajes          VARCHAR(MAX)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO FACTURACION.PAQUETE (EVENTO_id_evento, cantidad_facturas, hash_archivo, codigo_recepcion, codigo_estado, estado, mensajes)
+    VALUES (@IdEvento, @CantidadFacturas, @HashArchivo, @CodigoRecepcion, @CodigoEstado, @Estado, @Mensajes);
+END
+GO
+
+CREATE OR ALTER PROCEDURE FACTURACION.ActualizarEstadoFactura
+    @IdFactura        INT,
+    @Estado           VARCHAR(20),
+    @CodigoEstado     INT,
+    @CodigoRecepcion  VARCHAR(100),
+    @Mensajes         VARCHAR(MAX)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE FACTURACION.FACTURA
+    SET estado = @Estado, codigo_estado = @CodigoEstado, codigo_recepcion = @CodigoRecepcion, mensajes = @Mensajes
+    WHERE id_factura = @IdFactura AND estado = 'PENDIENTE';
 END
 GO
 

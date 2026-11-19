@@ -24,6 +24,7 @@ namespace CapaPresentacionAdmin.Controllers
 
         private readonly CN_ConfiguracionFacturacion _cnConfig = new CN_ConfiguracionFacturacion();
         private readonly CN_Factura _cnFactura = new CN_Factura();
+        private readonly CN_Contingencia _cnContingencia = new CN_Contingencia();
 
         private User_activo UsuarioActual
         {
@@ -191,6 +192,8 @@ namespace CapaPresentacionAdmin.Controllers
                 f.estado,
                 f.codigo_estado,
                 f.mensajes,
+                f.tipo_emision,
+                f.id_evento,
                 f.motivo_anulacion,
                 fecha_anulacion = f.fecha_anulacion.HasValue ? f.fecha_anulacion.Value.ToString("dd/MM/yyyy HH:mm") : null,
                 fecha_limite_anulacion = CN_Factura.FechaLimiteAnulacion(f.fecha_emision).ToString("dd/MM/yyyy"),
@@ -306,6 +309,102 @@ namespace CapaPresentacionAdmin.Controllers
 
             byte[] contenido = new UTF8Encoding(false).GetBytes(f.archivo_xml);
             return File(contenido, "application/xml", "factura_" + f.nit_emisor + "_" + f.numero_factura + ".xml");
+        }
+
+        // =============================================================== CONTINGENCIA
+
+        [ValidarSesion(Roles = RolesConfigurar)]
+        public ActionResult Contingencia()
+        {
+            return View();
+        }
+
+        /// <summary>Estado de cada tienda configurada (en línea / fuera de línea) y de la simulación de corte.</summary>
+        [HttpGet]
+        [ValidarSesion(Roles = RolesConfigurar)]
+        public JsonResult EstadoContingencia()
+        {
+            string mensaje;
+            ConfiguracionFacturacion config = _cnConfig.ObtenerConfiguracion(out mensaje);
+            var tiendas = _cnConfig.ListarSucursales(out mensaje).Where(s => s.configurada).Select(s =>
+            {
+                EventoSignificativo e = _cnContingencia.ObtenerEventoAbierto(s.id_tienda);
+                return new
+                {
+                    s.id_tienda,
+                    s.nombre_tienda,
+                    s.codigo_sucursal,
+                    s.codigo_punto_venta,
+                    fuera_de_linea = e != null,
+                    evento = e == null ? null : new
+                    {
+                        e.id_evento,
+                        e.codigo_evento,
+                        e.descripcion_evento,
+                        e.automatico,
+                        desde = e.fecha_inicio.ToString("dd/MM/yyyy HH:mm"),
+                        e.cantidad_facturas
+                    }
+                };
+            }).ToList();
+
+            return Json(new
+            {
+                modo_simulado = config != null && config.modo_simulado,
+                simular_sin_conexion = config != null && config.simular_sin_conexion,
+                tiendas = tiendas
+            }, JsonRequestBehavior.AllowGet);
+        }
+
+        [HttpGet]
+        [ValidarSesion(Roles = RolesConfigurar)]
+        public JsonResult ListarEventos()
+        {
+            var lista = _cnContingencia.ListarEventos(null).Select(e => new
+            {
+                e.id_evento,
+                e.nombre_tienda,
+                e.codigo_evento,
+                e.descripcion_evento,
+                e.descripcion,
+                e.automatico,
+                fecha_inicio = e.fecha_inicio.ToString("dd/MM/yyyy HH:mm"),
+                fecha_fin = e.fecha_fin.HasValue ? e.fecha_fin.Value.ToString("dd/MM/yyyy HH:mm") : null,
+                limite_envio = CN_Contingencia.FechaLimiteEnvio(e).HasValue ? CN_Contingencia.FechaLimiteEnvio(e).Value.ToString("dd/MM/yyyy HH:mm") : null,
+                e.estado,
+                e.codigo_recepcion_evento,
+                e.mensajes,
+                e.cantidad_facturas,
+                e.facturas_pendientes
+            }).ToList();
+            return Json(new { data = lista }, JsonRequestBehavior.AllowGet);
+        }
+
+        [HttpPost]
+        [ValidarSesion(Roles = RolesConfigurar)]
+        public JsonResult IniciarContingencia(int idTienda, int codigoEvento, string descripcion)
+        {
+            string mensaje;
+            EventoSignificativo e = _cnContingencia.Iniciar(idTienda, codigoEvento, descripcion, out mensaje);
+            return Json(new { resultado = e != null, mensaje = mensaje });
+        }
+
+        [HttpPost]
+        [ValidarSesion(Roles = RolesConfigurar)]
+        public JsonResult FinalizarContingencia(int idEvento)
+        {
+            string mensaje;
+            bool ok = _cnContingencia.FinalizarYEnviar(idEvento, out mensaje);
+            return Json(new { resultado = ok, mensaje = mensaje });
+        }
+
+        [HttpPost]
+        [ValidarSesion(Roles = RolesConfigurar)]
+        public JsonResult SimularSinConexion(bool valor)
+        {
+            string mensaje;
+            bool ok = _cnContingencia.GuardarSimulacionSinConexion(valor, out mensaje);
+            return Json(new { resultado = ok, mensaje = mensaje });
         }
 
         // =============================================================== utilidades

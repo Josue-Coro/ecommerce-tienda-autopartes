@@ -262,6 +262,7 @@ namespace CapaDatos.Facturacion
                     SqlParameter p = cmd.Parameters.AddWithValue("@Detalle", detalle);
                     p.SqlDbType = SqlDbType.Structured;
                     p.TypeName = "FACTURACION.DetalleFacturaTipo";
+                    cmd.Parameters.AddWithValue("@IdEvento", (object)f.id_evento ?? DBNull.Value);
                     cmd.Parameters.Add("@Mensaje", SqlDbType.VarChar, 500).Direction = ParameterDirection.Output;
                     cmd.Parameters.Add("@Resultado", SqlDbType.Int).Direction = ParameterDirection.Output;
 
@@ -320,7 +321,8 @@ namespace CapaDatos.Facturacion
                                 motivo_anulacion = LectorDatos.Texto(dr, "motivo_anulacion"),
                                 codigo_sucursal = LectorDatos.Entero(dr, "codigo_sucursal"),
                                 codigo_punto_venta = LectorDatos.Entero(dr, "codigo_punto_venta"),
-                                correo_cliente = LectorDatos.Texto(dr, "correo_cliente")
+                                correo_cliente = LectorDatos.Texto(dr, "correo_cliente"),
+                                id_evento = LectorDatos.EnteroNulo(dr, "id_evento")
                             });
                         }
                     }
@@ -394,7 +396,8 @@ namespace CapaDatos.Facturacion
                                 mensajes = LectorDatos.Texto(dr, "mensajes"),
                                 fecha_anulacion = LectorDatos.FechaNula(dr, "fecha_anulacion"),
                                 codigo_motivo_anulacion = LectorDatos.EnteroNulo(dr, "codigo_motivo_anulacion"),
-                                motivo_anulacion = LectorDatos.Texto(dr, "motivo_anulacion")
+                                motivo_anulacion = LectorDatos.Texto(dr, "motivo_anulacion"),
+                                id_evento = LectorDatos.EnteroNulo(dr, "EVENTO_id_evento")
                             };
                         }
 

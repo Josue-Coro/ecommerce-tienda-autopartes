@@ -65,6 +65,8 @@
     <Compile Include="Facturacion\NumeroALetras.cs" />
     <Compile Include="Facturacion\CN_ConfiguracionFacturacion.cs" />
     <Compile Include="Facturacion\CN_Factura.cs" />
+    <Compile Include="Facturacion\CN_Contingencia.cs" />
+    <Compile Include="Facturacion\ArchivoTar.cs" />
     <Compile Include="Facturacion\Siat\ISiatServicio.cs" />
     <Compile Include="Facturacion\Siat\CatalogosSimulados.cs" />
     <Compile Include="Facturacion\Siat\SiatServicioSimulado.cs" />

@@ -99,6 +99,29 @@ namespace CapaNegocio.Facturacion
             }
         }
 
+        public static byte[] Comprimir(byte[] datos)
+        {
+            using (MemoryStream salida = new MemoryStream())
+            {
+                using (GZipStream gzip = new GZipStream(salida, CompressionMode.Compress))
+                {
+                    gzip.Write(datos, 0, datos.Length);
+                }
+                return salida.ToArray();
+            }
+        }
+
+        public static byte[] Descomprimir(byte[] archivo)
+        {
+            using (MemoryStream entrada = new MemoryStream(archivo))
+            using (GZipStream gzip = new GZipStream(entrada, CompressionMode.Decompress))
+            using (MemoryStream salida = new MemoryStream())
+            {
+                gzip.CopyTo(salida);
+                return salida.ToArray();
+            }
+        }
+
         public static string DescomprimirGzip(byte[] archivo)
         {
             using (MemoryStream entrada = new MemoryStream(archivo))

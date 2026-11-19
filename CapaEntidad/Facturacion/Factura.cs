@@ -73,6 +73,9 @@ namespace CapaEntidad.Facturacion
 
         public string mensajes { get; set; }
 
+        /// <summary>Evento significativo en el que se emitió (solo facturas fuera de línea).</summary>
+        public int? id_evento { get; set; }
+
         // ---- Anulación ----
         public DateTime? fecha_anulacion { get; set; }
         public int? codigo_motivo_anulacion { get; set; }

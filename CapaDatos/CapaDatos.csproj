@@ -64,6 +64,7 @@
     <Compile Include="Facturacion\CD_ConfiguracionFacturacion.cs" />
     <Compile Include="Facturacion\CD_CatalogoSin.cs" />
     <Compile Include="Facturacion\CD_Factura.cs" />
+    <Compile Include="Facturacion\CD_Contingencia.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

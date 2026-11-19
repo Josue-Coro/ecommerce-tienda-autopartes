@@ -27,5 +27,8 @@ namespace CapaEntidad.Facturacion
         public string token_delegado { get; set; }
 
         public DateTime? fecha_actualizacion { get; set; }
+
+        /// <summary>Solo en modo simulado: hace que el SIN simulado no responda, para demostrar la contingencia.</summary>
+        public bool simular_sin_conexion { get; set; }
     }
 }

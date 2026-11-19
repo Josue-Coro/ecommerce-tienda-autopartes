@@ -173,6 +173,14 @@ namespace CapaNegocio.Facturacion.Siat
         public const int PlazoAnulacionVencido = 1012;
         public const int MetodoPagoInvalido = 1013;
         public const int TarjetaSinEnmascarar = 1014;
+        public const int EventoRegistrado = 1015;
+        public const int EventoInvalido = 1016;
+        public const int EventoFueraDePlazo = 1017;
+        public const int EventoNoExiste = 1018;
+        public const int CantidadNoCoincide = 1019;
+        public const int PaqueteExcedeLimite = 1020;
+        public const int FacturaFueraDelEvento = 1021;
+        public const int PaqueteNoExiste = 1022;
 
         public static readonly Dictionary<int, string> Todos = new Dictionary<int, string>
         {
@@ -199,7 +207,15 @@ namespace CapaNegocio.Facturacion.Siat
             { MotivoAnulacionInvalido, "EL MOTIVO DE ANULACIÓN NO EXISTE EN EL CATÁLOGO" },
             { PlazoAnulacionVencido, "EL PLAZO DE ANULACIÓN VENCIÓ (DÍA 9 DEL MES SIGUIENTE A LA EMISIÓN)" },
             { MetodoPagoInvalido, "EL MÉTODO DE PAGO NO EXISTE EN EL CATÁLOGO" },
-            { TarjetaSinEnmascarar, "EL NÚMERO DE TARJETA DEBE ENVIARSE ENMASCARADO" }
+            { TarjetaSinEnmascarar, "EL NÚMERO DE TARJETA DEBE ENVIARSE ENMASCARADO" },
+            { EventoRegistrado, "EVENTO SIGNIFICATIVO REGISTRADO" },
+            { EventoInvalido, "LOS DATOS DEL EVENTO SIGNIFICATIVO NO SON VÁLIDOS" },
+            { EventoFueraDePlazo, "EL EVENTO DEBE REGISTRARSE DENTRO DE LAS 48 HORAS POSTERIORES A SU FINALIZACIÓN" },
+            { EventoNoExiste, "EL CÓDIGO DE EVENTO NO EXISTE" },
+            { CantidadNoCoincide, "LA CANTIDAD DE FACTURAS NO COINCIDE CON EL CONTENIDO DEL PAQUETE" },
+            { PaqueteExcedeLimite, "EL PAQUETE EXCEDE EL MÁXIMO DE 500 FACTURAS" },
+            { FacturaFueraDelEvento, "LA FACTURA NO CORRESPONDE AL EVENTO SIGNIFICATIVO (CUFD O FECHA FUERA DEL PERIODO)" },
+            { PaqueteNoExiste, "EL CÓDIGO DE RECEPCIÓN DEL PAQUETE NO EXISTE" }
         };
 
         public static MensajeSiat Crear(int codigo, string detalle = null)

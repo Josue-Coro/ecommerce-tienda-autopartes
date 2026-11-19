@@ -111,7 +111,16 @@ namespace CapaNegocio.Facturacion
                 return false;
             }
 
-            RespuestaCuis r = SiatServicioFactory.Crear(config).SolicitarCuis(config, suc.codigo_sucursal, suc.codigo_punto_venta);
+            RespuestaCuis r;
+            try
+            {
+                r = SiatServicioFactory.Crear(config).SolicitarCuis(config, suc.codigo_sucursal, suc.codigo_punto_venta);
+            }
+            catch (SiatSinConexionException ex)
+            {
+                Mensaje = "El SIN no responde: " + ex.Message;
+                return false;
+            }
             if (!r.transaccion)
             {
                 Mensaje = "El SIN no otorgó el CUIS: " + r.MensajesComoTexto();
@@ -132,10 +141,19 @@ namespace CapaNegocio.Facturacion
 
             SucursalFacturacion suc = ObtenerSucursal(idTienda, out Mensaje);
             if (suc == null) return false;
-            return SolicitarCufd(config, suc, out Mensaje) != null;
+            try
+            {
+                return RenovarCufd(config, suc, out Mensaje) != null;
+            }
+            catch (SiatSinConexionException ex)
+            {
+                Mensaje = "El SIN no responde: " + ex.Message;
+                return false;
+            }
         }
 
-        private CodigoCufd SolicitarCufd(ConfiguracionFacturacion config, SucursalFacturacion suc, out string Mensaje)
+        /// <summary>Solicita un CUFD nuevo para la sucursal y lo registra. Puede lanzar SiatSinConexionException.</summary>
+        public CodigoCufd RenovarCufd(ConfiguracionFacturacion config, SucursalFacturacion suc, out string Mensaje)
         {
             Mensaje = string.Empty;
             if (suc.oCuis == null || !suc.oCuis.vigente)
@@ -189,7 +207,7 @@ namespace CapaNegocio.Facturacion
             }
             if (suc.oCufd == null || !suc.oCufd.vigente)
             {
-                CodigoCufd nuevo = SolicitarCufd(config, suc, out Mensaje);
+                CodigoCufd nuevo = RenovarCufd(config, suc, out Mensaje);
                 if (nuevo == null) return null;
                 suc.oCufd = nuevo;
             }
@@ -220,7 +238,16 @@ namespace CapaNegocio.Facturacion
 
             foreach (string tipo in TipoCatalogoSin.Todos)
             {
-                RespuestaCatalogo r = siat.SincronizarCatalogo(config, suc.oCuis.codigo, suc.codigo_sucursal, suc.codigo_punto_venta, tipo);
+                RespuestaCatalogo r;
+                try
+                {
+                    r = siat.SincronizarCatalogo(config, suc.oCuis.codigo, suc.codigo_sucursal, suc.codigo_punto_venta, tipo);
+                }
+                catch (SiatSinConexionException ex)
+                {
+                    Mensaje = "El SIN no responde; los catálogos locales se mantienen. " + ex.Message;
+                    return false;
+                }
                 if (!r.transaccion)
                 {
                     errores.Add(tipo + ": " + r.MensajesComoTexto());

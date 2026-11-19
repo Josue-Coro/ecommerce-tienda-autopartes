@@ -30,6 +30,7 @@ namespace CapaNegocio.Facturacion
     {
         public const int ModalidadComputarizada = 2;
         public const int EmisionEnLinea = 1;
+        public const int EmisionFueraDeLinea = 2;
         public const int FacturaConCreditoFiscal = 1;
         public const int SectorCompraVenta = 1;
         public const int MonedaBoliviano = 1;
@@ -70,9 +71,33 @@ namespace CapaNegocio.Facturacion
             if (config.codigo_modalidad != ModalidadComputarizada)
                 return Fallo(res, "Solo está implementada la modalidad Computarizada en Línea.");
 
-            SucursalFacturacion suc = _cnConfig.ObtenerSucursalOperativa(config, idTienda, out mensaje);
-            if (suc == null)
-                return Fallo(res, mensaje);
+            // Si la tienda está en contingencia se emite fuera de línea; si no, se verifica que el SIN responda.
+            ISiatServicio siat = SiatServicioFactory.Crear(config);
+            CN_Contingencia cnContingencia = new CN_Contingencia();
+            EventoSignificativo evento = cnContingencia.ObtenerEventoAbierto(idTienda);
+            SucursalFacturacion suc = null;
+            if (evento == null)
+            {
+                try
+                {
+                    suc = _cnConfig.ObtenerSucursalOperativa(config, idTienda, out mensaje);
+                    if (suc == null)
+                        return Fallo(res, mensaje);
+                    siat.VerificarComunicacion();
+                }
+                catch (SiatSinConexionException ex)
+                {
+                    evento = cnContingencia.IniciarAutomatico(idTienda, ex.Message, out mensaje);
+                    if (evento == null)
+                        return Fallo(res, "El SIN no responde y no se pudo pasar a emisión fuera de línea: " + mensaje);
+                }
+            }
+            if (evento != null)
+            {
+                suc = _cnConfig.ObtenerSucursal(idTienda, out mensaje);
+                if (suc == null || suc.oCuis == null)
+                    return Fallo(res, mensaje);
+            }
 
             // 3) Venta y homologaciones
             VentaParaFacturar venta = _cdFactura.ObtenerVentaParaFacturar(sol.id_venta, out mensaje);
@@ -112,16 +137,28 @@ namespace CapaNegocio.Facturacion
             int codigoExcepcion = 0;
             string numeroDocumento = sol.numero_documento.Trim();
             bool esEspecial = DocumentosEspeciales.Contains(numeroDocumento);
-            ISiatServicio siat = SiatServicioFactory.Crear(config);
             if (sol.codigo_tipo_documento == TipoDocumentoNIT)
             {
-                if (esEspecial || sol.autorizar_nit_invalido)
+                // Fuera de línea el NIT no se puede verificar: el anexo exige enviar código de excepción 1.
+                if (esEspecial || sol.autorizar_nit_invalido || evento != null)
                 {
                     codigoExcepcion = 1;
                 }
                 else
                 {
-                    RespuestaSiat rn = siat.VerificarNit(config, suc.oCuis.codigo, suc.codigo_sucursal, numeroDocumento);
+                    RespuestaSiat rn;
+                    try
+                    {
+                        rn = siat.VerificarNit(config, suc.oCuis.codigo, suc.codigo_sucursal, numeroDocumento);
+                    }
+                    catch (SiatSinConexionException ex)
+                    {
+                        evento = cnContingencia.IniciarAutomatico(idTienda, ex.Message, out mensaje);
+                        if (evento == null)
+                            return Fallo(res, "El SIN no responde y no se pudo pasar a emisión fuera de línea: " + mensaje);
+                        rn = new RespuestaSiat { transaccion = true };
+                        codigoExcepcion = 1;
+                    }
                     if (!rn.transaccion)
                     {
                         res.requiere_excepcion_nit = true;
@@ -144,12 +181,13 @@ namespace CapaNegocio.Facturacion
                 razon_social_emisor = config.razon_social,
                 municipio = suc.municipio,
                 telefono = suc.telefono,
-                direccion = string.IsNullOrWhiteSpace(suc.oCufd.direccion) ? suc.direccion_tienda : suc.oCufd.direccion,
+                direccion = suc.oCufd == null || string.IsNullOrWhiteSpace(suc.oCufd.direccion) ? suc.direccion_tienda : suc.oCufd.direccion,
                 codigo_sucursal = suc.codigo_sucursal,
                 codigo_punto_venta = suc.codigo_punto_venta,
-                cufd = suc.oCufd.codigo,
+                cufd = evento != null ? evento.cufd_evento : suc.oCufd.codigo,
                 codigo_modalidad = ModalidadComputarizada,
-                tipo_emision = EmisionEnLinea,
+                tipo_emision = evento != null ? EmisionFueraDeLinea : EmisionEnLinea,
+                id_evento = evento != null ? (int?)evento.id_evento : null,
                 tipo_factura = FacturaConCreditoFiscal,
                 codigo_documento_sector = SectorCompraVenta,
                 nombre_razon_social = sol.razon_social.Trim().ToUpperInvariant(),
@@ -213,55 +251,73 @@ namespace CapaNegocio.Facturacion
 
             DateTime ahora = DateTime.Now;
             f.fecha_emision = new DateTime(ahora.Year, ahora.Month, ahora.Day, ahora.Hour, ahora.Minute, ahora.Second, ahora.Millisecond);
-            f.cuf = AlgoritmosSiat.GenerarCuf(f.nit_emisor, f.fecha_emision, f.codigo_sucursal, f.codigo_modalidad,
-                                              f.tipo_emision, f.tipo_factura, f.codigo_documento_sector,
-                                              f.numero_factura, f.codigo_punto_venta, suc.oCufd.codigo_control);
 
-            f.archivo_xml = GeneradorXmlFactura.Generar(f);
-            List<string> erroresXsd = GeneradorXmlFactura.Validar(f.archivo_xml);
-            if (erroresXsd.Count > 0)
-                return Fallo(res, "El XML generado no cumple el XSD del SIN: " + string.Join(" | ", erroresXsd.Take(3)));
+            byte[] comprimido;
+            mensaje = ArmarDocumento(f, evento != null ? evento.codigo_control_evento : suc.oCufd.codigo_control, out comprimido);
+            if (mensaje != null)
+                return Fallo(res, mensaje);
 
-            byte[] comprimido = AlgoritmosSiat.ComprimirGzip(f.archivo_xml);
-            f.hash_archivo = AlgoritmosSiat.Sha256(comprimido);
-
-            // 7) Envío al SIN
-            RespuestaRecepcion rr;
-            try
+            // 7) Envío al SIN (solo en línea; fuera de línea se envía en paquete al cerrar la contingencia)
+            RespuestaRecepcion rr = null;
+            if (evento == null)
             {
-                rr = siat.RecepcionFactura(new SolicitudRecepcionFactura
+                try
                 {
-                    codigo_ambiente = config.codigo_ambiente,
-                    codigo_modalidad = f.codigo_modalidad,
-                    codigo_emision = f.tipo_emision,
-                    codigo_documento_sector = f.codigo_documento_sector,
-                    tipo_factura_documento = f.tipo_factura,
-                    codigo_sistema = config.codigo_sistema,
-                    nit = config.nit,
-                    cuis = suc.oCuis.codigo,
-                    cufd = f.cufd,
-                    codigo_sucursal = f.codigo_sucursal,
-                    codigo_punto_venta = f.codigo_punto_venta,
-                    archivo = comprimido,
-                    hash_archivo = f.hash_archivo,
-                    fecha_envio = DateTime.Now
-                });
-            }
-            catch (Exception ex)
-            {
-                // La emisión fuera de línea (contingencia) se implementará en la siguiente etapa.
-                return Fallo(res, "No se pudo comunicar con el SIN: " + ex.Message);
+                    rr = siat.RecepcionFactura(new SolicitudRecepcionFactura
+                    {
+                        codigo_ambiente = config.codigo_ambiente,
+                        codigo_modalidad = f.codigo_modalidad,
+                        codigo_emision = f.tipo_emision,
+                        codigo_documento_sector = f.codigo_documento_sector,
+                        tipo_factura_documento = f.tipo_factura,
+                        codigo_sistema = config.codigo_sistema,
+                        nit = config.nit,
+                        cuis = suc.oCuis.codigo,
+                        cufd = f.cufd,
+                        codigo_sucursal = f.codigo_sucursal,
+                        codigo_punto_venta = f.codigo_punto_venta,
+                        archivo = comprimido,
+                        hash_archivo = f.hash_archivo,
+                        fecha_envio = DateTime.Now
+                    });
+                }
+                catch (SiatSinConexionException ex)
+                {
+                    // El SIN dejó de responder durante el envío: se pasa a contingencia y la factura
+                    // se rehace como fuera de línea (mismo número, CUF de emisión 2).
+                    evento = cnContingencia.IniciarAutomatico(idTienda, ex.Message, out mensaje);
+                    if (evento == null)
+                        return Fallo(res, "El SIN no responde y no se pudo pasar a emisión fuera de línea: " + mensaje);
+
+                    f.tipo_emision = EmisionFueraDeLinea;
+                    f.cufd = evento.cufd_evento;
+                    f.id_evento = evento.id_evento;
+                    if (f.codigo_tipo_documento == TipoDocumentoNIT)
+                        f.codigo_excepcion = 1;
+                    mensaje = ArmarDocumento(f, evento.codigo_control_evento, out comprimido);
+                    if (mensaje != null)
+                        return Fallo(res, mensaje);
+                }
             }
 
-            f.codigo_estado = rr.codigo_estado;
-            f.codigo_recepcion = rr.codigo_recepcion;
-            f.mensajes = rr.mensajes.Count > 0 ? rr.MensajesComoTexto() : null;
-            if (rr.codigo_estado == CodigoEstadoSiat.Validada)
-                f.estado = EstadoFactura.Validada;
-            else if (rr.codigo_estado == CodigoEstadoSiat.Pendiente)
+            if (rr == null)
+            {
                 f.estado = EstadoFactura.Pendiente;
+                f.codigo_estado = 0;
+                f.mensajes = "Emitida fuera de línea (contingencia #" + evento.id_evento + "); pendiente de envío al SIN.";
+            }
             else
-                f.estado = EstadoFactura.Observada;
+            {
+                f.codigo_estado = rr.codigo_estado;
+                f.codigo_recepcion = rr.codigo_recepcion;
+                f.mensajes = rr.mensajes.Count > 0 ? rr.MensajesComoTexto() : null;
+                if (rr.codigo_estado == CodigoEstadoSiat.Validada)
+                    f.estado = EstadoFactura.Validada;
+                else if (rr.codigo_estado == CodigoEstadoSiat.Pendiente)
+                    f.estado = EstadoFactura.Pendiente;
+                else
+                    f.estado = EstadoFactura.Observada;
+            }
 
             // 8) Registro
             int idFactura = _cdFactura.Registrar(f, out mensaje);
@@ -286,10 +342,32 @@ namespace CapaNegocio.Facturacion
             res.numero_factura = f.numero_factura;
             res.estado = f.estado;
             res.exito = f.estado != EstadoFactura.Observada;
-            res.mensaje = f.estado == EstadoFactura.Validada
-                ? "Factura N° " + f.numero_factura + " emitida y VALIDADA por el SIN" + (siat.EsSimulado ? " (simulado)." : ".")
-                : "Factura N° " + f.numero_factura + " " + f.estado + ": " + f.mensajes;
+            if (f.tipo_emision == EmisionFueraDeLinea)
+                res.mensaje = "Factura N° " + f.numero_factura + " emitida FUERA DE LÍNEA (contingencia #" + f.id_evento
+                            + "). Se enviará al SIN al finalizar la contingencia en Facturación > Contingencia.";
+            else if (f.estado == EstadoFactura.Validada)
+                res.mensaje = "Factura N° " + f.numero_factura + " emitida y VALIDADA por el SIN" + (siat.EsSimulado ? " (simulado)." : ".");
+            else
+                res.mensaje = "Factura N° " + f.numero_factura + " " + f.estado + ": " + f.mensajes;
             return res;
+        }
+
+        /// <summary>Genera CUF, XML (validado contra el XSD), archivo comprimido y hash. Devuelve null si todo está bien.</summary>
+        private static string ArmarDocumento(Factura f, string codigoControl, out byte[] comprimido)
+        {
+            comprimido = null;
+            f.cuf = AlgoritmosSiat.GenerarCuf(f.nit_emisor, f.fecha_emision, f.codigo_sucursal, f.codigo_modalidad,
+                                              f.tipo_emision, f.tipo_factura, f.codigo_documento_sector,
+                                              f.numero_factura, f.codigo_punto_venta, codigoControl);
+
+            f.archivo_xml = GeneradorXmlFactura.Generar(f);
+            List<string> erroresXsd = GeneradorXmlFactura.Validar(f.archivo_xml);
+            if (erroresXsd.Count > 0)
+                return "El XML generado no cumple el XSD del SIN: " + string.Join(" | ", erroresXsd.Take(3));
+
+            comprimido = AlgoritmosSiat.ComprimirGzip(f.archivo_xml);
+            f.hash_archivo = AlgoritmosSiat.Sha256(comprimido);
+            return null;
         }
 
         private static bool ValidarComprador(SolicitudEmisionFactura sol, out string Mensaje)
@@ -365,24 +443,35 @@ namespace CapaNegocio.Facturacion
             if (config == null) return false;
 
             // La anulación puede hacerse desde la sucursal de origen u otra habilitada; se usa la de origen.
-            SucursalFacturacion suc = _cnConfig.ObtenerSucursalOperativa(config, f.id_tienda, out Mensaje);
-            if (suc == null) return false;
-
-            RespuestaRecepcion r = SiatServicioFactory.Crear(config).AnulacionFactura(new SolicitudAnulacionFactura
+            // Sin conexión no se puede anular: el anexo indica esperar y reintentar (no hay anulación fuera de línea).
+            SucursalFacturacion suc;
+            RespuestaRecepcion r;
+            try
             {
-                codigo_ambiente = config.codigo_ambiente,
-                codigo_modalidad = f.codigo_modalidad,
-                codigo_documento_sector = f.codigo_documento_sector,
-                tipo_factura_documento = f.tipo_factura,
-                codigo_sistema = config.codigo_sistema,
-                nit = config.nit,
-                cuis = suc.oCuis.codigo,
-                cufd = suc.oCufd.codigo,
-                codigo_sucursal = suc.codigo_sucursal,
-                codigo_punto_venta = suc.codigo_punto_venta,
-                cuf = f.cuf,
-                codigo_motivo = codigoMotivo
-            });
+                suc = _cnConfig.ObtenerSucursalOperativa(config, f.id_tienda, out Mensaje);
+                if (suc == null) return false;
+
+                r = SiatServicioFactory.Crear(config).AnulacionFactura(new SolicitudAnulacionFactura
+                {
+                    codigo_ambiente = config.codigo_ambiente,
+                    codigo_modalidad = f.codigo_modalidad,
+                    codigo_documento_sector = f.codigo_documento_sector,
+                    tipo_factura_documento = f.tipo_factura,
+                    codigo_sistema = config.codigo_sistema,
+                    nit = config.nit,
+                    cuis = suc.oCuis.codigo,
+                    cufd = suc.oCufd.codigo,
+                    codigo_sucursal = suc.codigo_sucursal,
+                    codigo_punto_venta = suc.codigo_punto_venta,
+                    cuf = f.cuf,
+                    codigo_motivo = codigoMotivo
+                });
+            }
+            catch (SiatSinConexionException)
+            {
+                Mensaje = "El SIN no responde; no es posible anular en este momento. Intente nuevamente más tarde.";
+                return false;
+            }
 
             if (r.codigo_estado != CodigoEstadoSiat.Anulada)
             {

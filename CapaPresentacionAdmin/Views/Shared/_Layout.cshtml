@@ -247,6 +247,9 @@
                                         <a class="nav-link @(esFacturacion && ViewContext.RouteData.Values["action"]?.ToString() == "Homologacion" ? "active" : "")" href="@Url.Action("Homologacion","Facturacion")">
                                             <i class="fas fa-exchange-alt me-2"></i>Homologación SIN
                                         </a>
+                                        <a class="nav-link @(esFacturacion && ViewContext.RouteData.Values["action"]?.ToString() == "Contingencia" ? "active" : "")" href="@Url.Action("Contingencia","Facturacion")">
+                                            <i class="fas fa-plug me-2"></i>Contingencia
+                                        </a>
                                         <a class="nav-link @(esFacturacion && ViewContext.RouteData.Values["action"]?.ToString() == "Configuracion" ? "active" : "")" href="@Url.Action("Configuracion","Facturacion")">
                                             <i class="fas fa-sliders-h me-2"></i>Configuración
                                         </a>

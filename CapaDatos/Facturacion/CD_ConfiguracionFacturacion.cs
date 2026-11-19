@@ -35,7 +35,8 @@ namespace CapaDatos.Facturacion
                                 actividad_economica = LectorDatos.Texto(dr, "actividad_economica"),
                                 modo_simulado = LectorDatos.Booleano(dr, "modo_simulado"),
                                 token_delegado = LectorDatos.Texto(dr, "token_delegado"),
-                                fecha_actualizacion = LectorDatos.FechaNula(dr, "fecha_actualizacion")
+                                fecha_actualizacion = LectorDatos.FechaNula(dr, "fecha_actualizacion"),
+                                simular_sin_conexion = LectorDatos.Booleano(dr, "simular_sin_conexion")
                             };
                         }
                     }

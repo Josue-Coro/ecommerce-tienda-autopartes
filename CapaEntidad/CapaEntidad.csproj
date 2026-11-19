@@ -71,6 +71,7 @@
     <Compile Include="Facturacion\DatosFiscalesCliente.cs" />
     <Compile Include="Facturacion\Factura.cs" />
     <Compile Include="Facturacion\RespuestaSiat.cs" />
+    <Compile Include="Facturacion\EventoSignificativo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

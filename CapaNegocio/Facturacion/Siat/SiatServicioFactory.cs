@@ -8,7 +8,7 @@ namespace CapaNegocio.Facturacion.Siat
         public static ISiatServicio Crear(ConfiguracionFacturacion config)
         {
             if (config == null || config.modo_simulado)
-                return new SiatServicioSimulado();
+                return new SiatServicioSimulado(config != null && config.simular_sin_conexion);
 
             return new SiatServicioNoDisponible();
         }
@@ -31,6 +31,9 @@ namespace CapaNegocio.Facturacion.Siat
         public RespuestaCatalogo SincronizarCatalogo(ConfiguracionFacturacion config, string cuis, int codigoSucursal, int codigoPuntoVenta, string tipoCatalogo) { return Fallo<RespuestaCatalogo>(); }
         public RespuestaRecepcion RecepcionFactura(SolicitudRecepcionFactura solicitud) { return Fallo<RespuestaRecepcion>(); }
         public RespuestaRecepcion AnulacionFactura(SolicitudAnulacionFactura solicitud) { return Fallo<RespuestaRecepcion>(); }
+        public RespuestaEvento RegistroEventoSignificativo(SolicitudEventoSignificativo solicitud) { return Fallo<RespuestaEvento>(); }
+        public RespuestaRecepcion RecepcionPaqueteFactura(SolicitudRecepcionPaquete solicitud) { return Fallo<RespuestaRecepcion>(); }
+        public RespuestaRecepcion ValidacionRecepcionPaqueteFactura(SolicitudValidacionPaquete solicitud) { return Fallo<RespuestaRecepcion>(); }
 
         private static T Fallo<T>() where T : RespuestaSiat, new()
         {
