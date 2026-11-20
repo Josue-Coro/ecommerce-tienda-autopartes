@@ -52,6 +52,7 @@
     <Compile Include="CN_Proveedores.cs" />
     <Compile Include="CN_Recursos.cs" />
     <Compile Include="CN_Seguridad.cs" />
+    <Compile Include="CN_Autorizacion.cs" />
     <Compile Include="CN_Reporte.cs" />
     <Compile Include="CN_Roles.cs" />
     <Compile Include="CN_RolesPermisos.cs" />

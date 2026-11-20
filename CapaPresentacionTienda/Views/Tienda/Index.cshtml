@@ -68,6 +68,7 @@
 
 @section scripts {
     <script>
+        function esc(t) { return t == null ? "" : String(t).replace(/[&<>"'`]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;", "`": "&#96;" }[c]; }); }
         // Función para cargar categorías
         function cargarCategorias() {
             $.ajax({
@@ -80,7 +81,7 @@
                             html += `<div class="form-check">
                                 <input class="form-check-input filtro-categoria" type="checkbox" value="${categoria.id_categoria}" id="categoria-${categoria.id_categoria}">
                                 <label class="form-check-label" for="categoria-${categoria.id_categoria}">
-                                    ${categoria.descripcion}
+                                    ${esc(categoria.descripcion)}
                                 </label>
                             </div>`;
                         // }
@@ -105,7 +106,7 @@
                             html += `<div class="form-check">
                                 <input class="form-check-input filtro-marca" type="checkbox" value="${marca.id_marca}" id="marca-${marca.id_marca}">
                                 <label class="form-check-label" for="marca-${marca.id_marca}">
-                                    ${marca.descripcion}
+                                    ${esc(marca.descripcion)}
                                 </label>
                             </div>`;
 
@@ -141,11 +142,11 @@
 
                                         <div class="card-body p-4">
                                             <div class="text-center">
-                                                <h5 class="fw-bolder">${producto.nombre}</h5>
-                                                <p>${producto.descripcion}</p>
+                                                <h5 class="fw-bolder">${esc(producto.nombre)}</h5>
+                                                <p>${esc(producto.descripcion)}</p>
                                                 <p><strong>Precio:</strong> Bs. ${producto.precio.toFixed(2).replace('.', ',')}</p>
-                                                <p class="small text-muted mb-0">Marca: ${producto.marca ? producto.marca.descripcion : 'N/A'}</p>
-                                                <p class="small text-muted">Categoría: ${producto.categoria ? producto.categoria.descripcion : 'N/A'}</p>
+                                                <p class="small text-muted mb-0">Marca: ${producto.marca ? esc(producto.marca.descripcion) : "N/A"}</p>
+                                                <p class="small text-muted">Categoría: ${producto.categoria ? esc(producto.categoria.descripcion) : "N/A"}</p>
                                             </div>
                                         </div>
                                         

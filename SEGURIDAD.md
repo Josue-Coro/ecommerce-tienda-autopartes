@@ -15,21 +15,36 @@ Ambos archivos están en `.gitignore`. Si publica con Visual Studio, verifique q
 > historial público de Git. **Cámbielas** (en SQL Server y en la cuenta de Google) aunque ya no estén en los archivos.
 > Se recomienda además un usuario de SQL Server propio de la aplicación, con permisos solo sobre la base, en lugar de `sa`.
 
-## Control de acceso
+## Control de acceso (permisos)
 
-Todas las acciones del panel exigen sesión iniciada y, según el área, uno de estos roles (filtro `[ValidarSesion]`,
-en vistas **y** en los endpoints JSON):
+El acceso se decide por los **permisos** asignados a cada rol (`SEGURIDAD.PERMISOS` / `ROLES_PERMISOS`), desde
+*Administración > Roles por permisos*. Los cambios tienen efecto inmediato, sin volver a iniciar sesión. El filtro
+`[ValidarSesion(Permisos = "...")]` protege vistas **y** endpoints JSON, y el menú solo muestra lo que el usuario puede usar.
 
-| Área | Roles |
-|---|---|
-| Administración (usuarios, roles, permisos) | ADMINISTRADOR |
-| Mantenedor (categorías, marcas, productos, servicios, tipos de pago, tiendas, unidades) | ADMINISTRADOR, GERENTE — las listas de productos, servicios, tipos de pago y tiendas también VENDEDOR |
-| Operaciones (ventas, compras, clientes, proveedores, stock) | ADMINISTRADOR, GERENTE, VENDEDOR |
-| Reportes y exportación a Excel | ADMINISTRADOR, GERENTE |
-| Facturación | ADMINISTRADOR, GERENTE, VENDEDOR (configuración, homologación, anulaciones y contingencia: ADMINISTRADOR, GERENTE) |
-| Contabilidad | ADMINISTRADOR, GERENTE, CONTADOR (cierre de meses: ADMINISTRADOR, GERENTE) |
+| Permiso | Qué habilita | Roles que lo reciben al instalarse (además de ADMINISTRADOR) |
+|---|---|---|
+| ADMIN_USUARIOS | Usuarios y contraseñas | ADMINISTRADOR |
+| ADMIN_ROLES | Roles, permisos y su asignación | ADMINISTRADOR |
+| MANTENEDOR | Categorías, marcas, productos, servicios, tipos de pago, tiendas, unidades | GERENTE |
+| VENTAS | Registrar ventas (incluye leer productos, servicios, tipos de pago y clientes) | GERENTE, VENDEDOR |
+| COMPRAS | Registrar compras | GERENTE, VENDEDOR |
+| CLIENTES / PROVEEDORES / STOCK | Gestión de cada área | GERENTE, VENDEDOR |
+| REPORTES | Reportes, historial y exportación a Excel | GERENTE |
+| FACTURAS_EMITIR | Emitir y consultar facturas | GERENTE, VENDEDOR |
+| FACTURAS_ANULAR | Anular facturas, notas crédito-débito | GERENTE |
+| FACTURACION_CONFIG | Configuración SIAT, homologación, contingencia | GERENTE |
+| CONTABILIDAD | Plan de cuentas, libros, estados | GERENTE, CONTADOR |
+| CONTABILIDAD_CIERRE | Cerrar y reabrir meses | GERENTE |
 
-Sin sesión, las vistas redirigen al inicio de sesión y los endpoints responden 401; sin el rol, 403 o "Acceso denegado".
+- El catálogo se instala solo al arrancar la aplicación. A un permiso nuevo se le asignan los roles por defecto **una
+  sola vez**; después manda lo que el administrador configure.
+- Los permisos del sistema no se pueden renombrar, desactivar ni eliminar (solo cambiar su descripción).
+- **ADMINISTRADOR** es superusuario: tiene todos los permisos, su nombre está reservado y el rol no se puede renombrar,
+  desactivar ni eliminar. Solo un ADMINISTRADOR puede crear, editar o cambiar la contraseña de otra cuenta ADMINISTRADOR,
+  y nadie puede eliminar su propia cuenta.
+- Un usuario desactivado (o con el rol desactivado) pierde la sesión en menos de un minuto.
+
+Sin sesión, las vistas redirigen al inicio de sesión y los endpoints responden 401; sin permiso, 403 o "Acceso denegado".
 
 ## Contraseñas e inicio de sesión
 
@@ -44,14 +59,13 @@ Sin sesión, las vistas redirigen al inicio de sesión y los endpoints responden
 
 - **CSRF:** las acciones POST deben llegar por AJAX (cabecera `X-Requested-With`); los formularios de inicio de sesión
   y cambio de contraseña usan token antifalsificación.
+- **XSS:** las tablas (DataTables) escapan por defecto todo texto (`Scripts/seguridad.js`, función `esc()`), y las
+  vistas que arman HTML con datos de la base (incluida la tienda pública) los escapan.
 - **Subida de imágenes:** solo JPG, PNG, GIF o WEBP, hasta 5 MB, verificando el contenido real del archivo.
 - No se muestran detalles de errores a usuarios remotos (`customErrors`); cookies `HttpOnly`; sin cabeceras de versión.
 
 ## Pendiente
 
-- Los permisos (`SEGURIDAD.PERMISOS` / `ROLES_PERMISOS`) se pueden asignar desde la pantalla, pero el sistema autoriza
-  por el **nombre del rol**; la asignación de permisos todavía no tiene efecto.
-- Varias pantallas antiguas muestran textos de la base sin escapar (riesgo de XSS almacenado por usuarios internos).
 - Regenerar el identificador de sesión al iniciar sesión y forzar HTTPS en producción (`requireSSL`).
 - El alta de usuario y el restablecimiento por el administrador envían la contraseña temporal por correo; lo ideal es
   un enlace de un solo uso.

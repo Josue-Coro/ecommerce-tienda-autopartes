@@ -29,9 +29,15 @@ namespace CapaNegocio
             {
                 Mensaje = "La descripcion del rol no puede ser vacio";
             }
+            else if (CN_Autorizacion.EsNombreReservado(obj.nombre))
+            {
+                Mensaje = "El nombre ADMINISTRADOR está reservado.";
+            }
             if (string.IsNullOrEmpty(Mensaje))
             {
-                return objRol.Registrar(obj, out Mensaje);
+                int id = objRol.Registrar(obj, out Mensaje);
+                CN_Autorizacion.Invalidar();
+                return id;
             }
             else
             {
@@ -52,7 +58,19 @@ namespace CapaNegocio
             }
             if (string.IsNullOrEmpty(Mensaje))
             {
-                return objRol.Editar(obj, out Mensaje);
+                // El rol ADMINISTRADOR (superusuario) no se renombra ni se desactiva, y ningún otro rol puede tomar ese nombre.
+                Roles actual = ObtenerPorId(obj.id_rol);
+                bool eraAdmin = actual != null && CN_Autorizacion.EsNombreReservado(actual.nombre);
+                if (eraAdmin && (!CN_Autorizacion.EsNombreReservado(obj.nombre) || !obj.estado))
+                    Mensaje = "El rol ADMINISTRADOR no se puede renombrar ni desactivar.";
+                else if (!eraAdmin && CN_Autorizacion.EsNombreReservado(obj.nombre))
+                    Mensaje = "El nombre ADMINISTRADOR está reservado.";
+            }
+            if (string.IsNullOrEmpty(Mensaje))
+            {
+                bool ok = objRol.Editar(obj, out Mensaje);
+                CN_Autorizacion.Invalidar();
+                return ok;
             }
             else
             {
@@ -64,7 +82,14 @@ namespace CapaNegocio
         {
             Mensaje = string.Empty;
 
+            Roles actual = ObtenerPorId(id_rol);
+            if (actual != null && CN_Autorizacion.EsNombreReservado(actual.nombre))
+            {
+                Mensaje = "El rol ADMINISTRADOR no se puede eliminar.";
+                return false;
+            }
             bool eliminado = objRol.Eliminar(id_rol, out Mensaje);
+            CN_Autorizacion.Invalidar();
             if (!eliminado)
             {
                 Mensaje = "El rol se encuentra relacionado a un usuario. No se puede eliminar.";

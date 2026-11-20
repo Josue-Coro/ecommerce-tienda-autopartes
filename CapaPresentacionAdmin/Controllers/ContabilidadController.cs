@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -13,7 +13,7 @@ using CapaPresentacionAdmin.Filters;
 namespace CapaPresentacionAdmin.Controllers
 {
     /// <summary>Módulo de Contabilidad. Disponible para los roles ADMINISTRADOR, GERENTE y CONTADOR.</summary>
-    [ValidarSesion(Roles = "ADMINISTRADOR,GERENTE,CONTADOR")]
+    [ValidarSesion(Permisos = "CONTABILIDAD")]
     public class ContabilidadController : Controller
     {
         private readonly CN_Contabilidad _cn = new CN_Contabilidad();
@@ -122,8 +122,8 @@ namespace CapaPresentacionAdmin.Controllers
             return Json(new { resultado = ok, mensaje = mensaje });
         }
 
+        [ValidarSesion(Permisos = "CONTABILIDAD_CIERRE")]
         [HttpPost]
-        [ValidarSesion(Roles = "ADMINISTRADOR,GERENTE")]
         public JsonResult CambiarCierrePeriodo(int gestion, int mes, bool cerrar)
         {
             string mensaje;

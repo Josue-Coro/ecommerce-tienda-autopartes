@@ -64,6 +64,7 @@
     <Compile Include="User_activo.cs" />
     <Compile Include="Usuario.cs" />
     <Compile Include="Venta.cs" />
+    <Compile Include="PermisoSistema.cs" />
     <Compile Include="Facturacion\ConfiguracionFacturacion.cs" />
     <Compile Include="Facturacion\SucursalFacturacion.cs" />
     <Compile Include="Facturacion\CatalogoSin.cs" />

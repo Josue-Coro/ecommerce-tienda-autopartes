@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Globalization;
 using System.Linq;
 using System.Text;
@@ -16,11 +16,9 @@ namespace CapaPresentacionAdmin.Controllers
     /// Módulo de Facturación (modalidad Computarizada en Línea, documento sector Compra Venta).
     /// Todas las acciones exigen sesión; la configuración y la homologación, además, rol ADMINISTRADOR o GERENTE.
     /// </summary>
-    [ValidarSesion(Roles = RolesFacturar)]
+    [ValidarSesion(Permisos = "FACTURAS_EMITIR,FACTURAS_ANULAR,FACTURACION_CONFIG")]
     public class FacturacionController : Controller
     {
-        private const string RolesFacturar = "ADMINISTRADOR,GERENTE,VENDEDOR";
-        private const string RolesConfigurar = "ADMINISTRADOR,GERENTE";
 
         private readonly CN_ConfiguracionFacturacion _cnConfig = new CN_ConfiguracionFacturacion();
         private readonly CN_Factura _cnFactura = new CN_Factura();
@@ -34,14 +32,14 @@ namespace CapaPresentacionAdmin.Controllers
 
         // =============================================================== CONFIGURACIÓN
 
-        [ValidarSesion(Roles = RolesConfigurar)]
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
         public ActionResult Configuracion()
         {
             return View();
         }
 
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
         [HttpGet]
-        [ValidarSesion(Roles = RolesConfigurar)]
         public JsonResult ObtenerConfiguracion()
         {
             string mensaje;
@@ -52,8 +50,8 @@ namespace CapaPresentacionAdmin.Controllers
             return Json(new { resultado = config != null, data = config, mensaje = mensaje }, JsonRequestBehavior.AllowGet);
         }
 
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
         [HttpPost]
-        [ValidarSesion(Roles = RolesConfigurar)]
         public JsonResult GuardarConfiguracion(ConfiguracionFacturacion objeto)
         {
             string mensaje;
@@ -65,8 +63,8 @@ namespace CapaPresentacionAdmin.Controllers
             return Json(new { resultado = ok, mensaje = mensaje });
         }
 
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
         [HttpGet]
-        [ValidarSesion(Roles = RolesConfigurar)]
         public JsonResult ListarSucursales()
         {
             string mensaje;
@@ -86,8 +84,8 @@ namespace CapaPresentacionAdmin.Controllers
             return Json(new { data = lista, mensaje = mensaje }, JsonRequestBehavior.AllowGet);
         }
 
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
         [HttpPost]
-        [ValidarSesion(Roles = RolesConfigurar)]
         public JsonResult GuardarSucursal(SucursalFacturacion objeto)
         {
             string mensaje;
@@ -95,8 +93,8 @@ namespace CapaPresentacionAdmin.Controllers
             return Json(new { resultado = ok, mensaje = mensaje });
         }
 
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
         [HttpPost]
-        [ValidarSesion(Roles = RolesConfigurar)]
         public JsonResult SolicitarCuis(int idTienda)
         {
             string mensaje;
@@ -104,8 +102,8 @@ namespace CapaPresentacionAdmin.Controllers
             return Json(new { resultado = ok, mensaje = mensaje });
         }
 
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
         [HttpPost]
-        [ValidarSesion(Roles = RolesConfigurar)]
         public JsonResult SolicitarCufd(int idTienda)
         {
             string mensaje;
@@ -113,8 +111,8 @@ namespace CapaPresentacionAdmin.Controllers
             return Json(new { resultado = ok, mensaje = mensaje });
         }
 
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
         [HttpPost]
-        [ValidarSesion(Roles = RolesConfigurar)]
         public JsonResult SincronizarCatalogos()
         {
             string mensaje;
@@ -122,8 +120,8 @@ namespace CapaPresentacionAdmin.Controllers
             return Json(new { resultado = ok, mensaje = mensaje });
         }
 
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
         [HttpGet]
-        [ValidarSesion(Roles = RolesConfigurar)]
         public JsonResult ResumenCatalogos()
         {
             var lista = _cnConfig.ResumenCatalogos().Select(r => new
@@ -148,21 +146,21 @@ namespace CapaPresentacionAdmin.Controllers
 
         // =============================================================== HOMOLOGACIÓN
 
-        [ValidarSesion(Roles = RolesConfigurar)]
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
         public ActionResult Homologacion()
         {
             return View();
         }
 
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
         [HttpGet]
-        [ValidarSesion(Roles = RolesConfigurar)]
         public JsonResult ListarHomologacion(string tipo)
         {
             return Json(new { data = _cnConfig.ListarHomologacion(tipo) }, JsonRequestBehavior.AllowGet);
         }
 
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
         [HttpPost]
-        [ValidarSesion(Roles = RolesConfigurar)]
         public JsonResult GuardarHomologacion(string tipo, int idRegistro, string codigoSin)
         {
             string mensaje;
@@ -172,11 +170,13 @@ namespace CapaPresentacionAdmin.Controllers
 
         // =============================================================== FACTURAS
 
+        [ValidarSesion(Permisos = "FACTURAS_EMITIR,FACTURAS_ANULAR")]
         public ActionResult Facturas()
         {
             return View();
         }
 
+        [ValidarSesion(Permisos = "FACTURAS_EMITIR,FACTURAS_ANULAR")]
         [HttpGet]
         public JsonResult ListarFacturas(string fechaInicio, string fechaFin, string estado)
         {
@@ -203,6 +203,7 @@ namespace CapaPresentacionAdmin.Controllers
             return Json(new { data = lista }, JsonRequestBehavior.AllowGet);
         }
 
+        [ValidarSesion(Permisos = "FACTURAS_EMITIR")]
         [HttpGet]
         public JsonResult ListarVentasPendientes(string fechaInicio, string fechaFin)
         {
@@ -219,6 +220,7 @@ namespace CapaPresentacionAdmin.Controllers
         }
 
         /// <summary>Datos para precargar el formulario de emisión de una venta.</summary>
+        [ValidarSesion(Permisos = "FACTURAS_EMITIR")]
         [HttpGet]
         public JsonResult DatosEmision(int idVenta)
         {
@@ -246,6 +248,7 @@ namespace CapaPresentacionAdmin.Controllers
             }, JsonRequestBehavior.AllowGet);
         }
 
+        [ValidarSesion(Permisos = "FACTURAS_EMITIR")]
         [HttpPost]
         public JsonResult EmitirFactura(SolicitudEmisionFactura objeto)
         {
@@ -262,8 +265,8 @@ namespace CapaPresentacionAdmin.Controllers
             });
         }
 
+        [ValidarSesion(Permisos = "FACTURAS_ANULAR")]
         [HttpPost]
-        [ValidarSesion(Roles = RolesConfigurar)]
         public JsonResult AnularFactura(int idFactura, int codigoMotivo)
         {
             string mensaje;
@@ -272,6 +275,7 @@ namespace CapaPresentacionAdmin.Controllers
         }
 
         /// <summary>Representación gráfica imprimible (formato "rollo" de 80 mm o "carta").</summary>
+        [ValidarSesion(Permisos = "FACTURAS_EMITIR,FACTURAS_ANULAR")]
         [HttpGet]
         public ActionResult Representacion(int id, string formato = "carta")
         {
@@ -300,6 +304,7 @@ namespace CapaPresentacionAdmin.Controllers
         }
 
         /// <summary>Descarga el XML de la factura tal como se envió al SIN.</summary>
+        [ValidarSesion(Permisos = "FACTURAS_EMITIR,FACTURAS_ANULAR")]
         [HttpGet]
         public ActionResult DescargarXml(int id)
         {
@@ -314,15 +319,15 @@ namespace CapaPresentacionAdmin.Controllers
 
         // =============================================================== CONTINGENCIA
 
-        [ValidarSesion(Roles = RolesConfigurar)]
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
         public ActionResult Contingencia()
         {
             return View();
         }
 
         /// <summary>Estado de cada tienda configurada (en línea / fuera de línea) y de la simulación de corte.</summary>
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
         [HttpGet]
-        [ValidarSesion(Roles = RolesConfigurar)]
         public JsonResult EstadoContingencia()
         {
             string mensaje;
@@ -357,8 +362,8 @@ namespace CapaPresentacionAdmin.Controllers
             }, JsonRequestBehavior.AllowGet);
         }
 
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
         [HttpGet]
-        [ValidarSesion(Roles = RolesConfigurar)]
         public JsonResult ListarEventos()
         {
             var lista = _cnContingencia.ListarEventos(null).Select(e => new
@@ -381,8 +386,8 @@ namespace CapaPresentacionAdmin.Controllers
             return Json(new { data = lista }, JsonRequestBehavior.AllowGet);
         }
 
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
         [HttpPost]
-        [ValidarSesion(Roles = RolesConfigurar)]
         public JsonResult IniciarContingencia(int idTienda, int codigoEvento, string descripcion)
         {
             string mensaje;
@@ -390,8 +395,8 @@ namespace CapaPresentacionAdmin.Controllers
             return Json(new { resultado = e != null, mensaje = mensaje });
         }
 
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
         [HttpPost]
-        [ValidarSesion(Roles = RolesConfigurar)]
         public JsonResult FinalizarContingencia(int idEvento)
         {
             string mensaje;
@@ -399,8 +404,8 @@ namespace CapaPresentacionAdmin.Controllers
             return Json(new { resultado = ok, mensaje = mensaje });
         }
 
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
         [HttpPost]
-        [ValidarSesion(Roles = RolesConfigurar)]
         public JsonResult SimularSinConexion(bool valor)
         {
             string mensaje;
@@ -410,11 +415,13 @@ namespace CapaPresentacionAdmin.Controllers
 
         // =============================================================== NOTAS CRÉDITO-DÉBITO
 
+        [ValidarSesion(Permisos = "FACTURAS_EMITIR,FACTURAS_ANULAR")]
         public ActionResult Notas()
         {
             return View();
         }
 
+        [ValidarSesion(Permisos = "FACTURAS_EMITIR,FACTURAS_ANULAR")]
         [HttpGet]
         public JsonResult ListarNotas(string fechaInicio, string fechaFin)
         {
@@ -441,8 +448,8 @@ namespace CapaPresentacionAdmin.Controllers
         }
 
         /// <summary>Datos de la factura para armar la nota: líneas con lo facturado, lo ya devuelto y lo disponible.</summary>
+        [ValidarSesion(Permisos = "FACTURAS_ANULAR")]
         [HttpGet]
-        [ValidarSesion(Roles = RolesConfigurar)]
         public JsonResult DatosNota(int idFactura)
         {
             string mensaje;
@@ -480,8 +487,8 @@ namespace CapaPresentacionAdmin.Controllers
             }, JsonRequestBehavior.AllowGet);
         }
 
+        [ValidarSesion(Permisos = "FACTURAS_ANULAR")]
         [HttpPost]
-        [ValidarSesion(Roles = RolesConfigurar)]
         public JsonResult EmitirNota(SolicitudEmisionNota objeto)
         {
             User_activo usuario = UsuarioActual;
@@ -489,8 +496,8 @@ namespace CapaPresentacionAdmin.Controllers
             return Json(new { resultado = r.exito, r.id_nota, r.numero_nota, r.estado, mensaje = r.mensaje });
         }
 
+        [ValidarSesion(Permisos = "FACTURAS_ANULAR")]
         [HttpPost]
-        [ValidarSesion(Roles = RolesConfigurar)]
         public JsonResult AnularNota(int idNota, int codigoMotivo)
         {
             string mensaje;
@@ -498,6 +505,7 @@ namespace CapaPresentacionAdmin.Controllers
             return Json(new { resultado = ok, mensaje = mensaje });
         }
 
+        [ValidarSesion(Permisos = "FACTURAS_EMITIR,FACTURAS_ANULAR")]
         [HttpGet]
         public ActionResult RepresentacionNota(int id)
         {
@@ -519,6 +527,7 @@ namespace CapaPresentacionAdmin.Controllers
             return View(n);
         }
 
+        [ValidarSesion(Permisos = "FACTURAS_EMITIR,FACTURAS_ANULAR")]
         [HttpGet]
         public ActionResult DescargarXmlNota(int id)
         {

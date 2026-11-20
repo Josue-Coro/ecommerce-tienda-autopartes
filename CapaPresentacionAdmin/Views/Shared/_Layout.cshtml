@@ -1,4 +1,5 @@
-﻿@{
+﻿@using CapaPresentacionAdmin.Filters
+@{
     var controlador = ViewContext.RouteData.Values["controller"]?.ToString();
     var esAdministracion = controlador == "Home" &&
         (ViewContext.RouteData.Values["action"]?.ToString() == "Usuarios" ||
@@ -29,15 +30,14 @@
         (ViewContext.RouteData.Values["action"]?.ToString() == "ReporteVentas" ||
          ViewContext.RouteData.Values["action"]?.ToString() == "ReporteCompras");
 
-    var nombreRolUsuario = Session["NombreRol"]?.ToString();
 
-    bool puedeVerAdministracion = nombreRolUsuario == "ADMINISTRADOR";
-    bool puedeVerMantenedor = nombreRolUsuario == "ADMINISTRADOR" || nombreRolUsuario == "GERENTE"; 
-    bool puedeVerOperaciones = nombreRolUsuario == "ADMINISTRADOR" || nombreRolUsuario == "VENDEDOR" || nombreRolUsuario == "GERENTE"; 
-    bool puedeVerReportes = nombreRolUsuario == "ADMINISTRADOR" || nombreRolUsuario == "GERENTE"; 
-    bool puedeVerFacturacion = puedeVerOperaciones;
-    bool puedeConfigurarFacturacion = nombreRolUsuario == "ADMINISTRADOR" || nombreRolUsuario == "GERENTE";
-    bool puedeVerContabilidad = nombreRolUsuario == "ADMINISTRADOR" || nombreRolUsuario == "GERENTE" || nombreRolUsuario == "CONTADOR";
+    bool puedeVerAdministracion = Permiso.Tiene("ADMIN_USUARIOS", "ADMIN_ROLES");
+    bool puedeVerMantenedor = Permiso.Tiene("MANTENEDOR");
+    bool puedeVerOperaciones = Permiso.Tiene("VENTAS", "COMPRAS", "CLIENTES", "PROVEEDORES", "STOCK");
+    bool puedeVerReportes = Permiso.Tiene("REPORTES");
+    bool puedeVerFacturacion = Permiso.Tiene("FACTURAS_EMITIR", "FACTURAS_ANULAR", "FACTURACION_CONFIG");
+    bool puedeConfigurarFacturacion = Permiso.Tiene("FACTURACION_CONFIG");
+    bool puedeVerContabilidad = Permiso.Tiene("CONTABILIDAD");
 }
 
 <!DOCTYPE html>
@@ -147,18 +147,30 @@
                             </a>
                             <div class="collapse @(esAdministracion ? "show" : "")" id="collapseAdministracion" aria-labelledby="headingTwo" data-bs-parent="#sidenavAccordion">
                                 <nav class="sb-sidenav-menu-nested nav">
-                                    <a class="nav-link @(ViewContext.RouteData.Values["action"]?.ToString() == "Usuarios" ? "active" : "")" href="@Url.Action("Usuarios","Home")">
-                                        <i class="fas fa-users me-2"></i>Usuario
-                                    </a>
-                                    <a class="nav-link @(ViewContext.RouteData.Values["action"]?.ToString() == "Roles" ? "active" : "")" href="@Url.Action("Roles","Home")">
-                                        <i class="fas fa-user-tag me-2"></i>Rol
-                                    </a>
-                                    <a class="nav-link @(ViewContext.RouteData.Values["action"]?.ToString() == "Permisos" ? "active" : "")" href="@Url.Action("Permisos","Home")">
-                                        <i class="fas fa-solid fa-user-lock me-2"></i>Registro de Permisos
-                                    </a>
-                                    <a class="nav-link @(ViewContext.RouteData.Values["action"]?.ToString() == "RolesPorPermisos" ? "active" : "")" href="@Url.Action("RolesPorPermisos","Home")">
-                                        <i class="fas fa-shield-alt me-2"></i>Permiso
-                                    </a>
+                                    @if (Permiso.Tiene("ADMIN_USUARIOS"))
+                                    {
+                                        <a class="nav-link @(ViewContext.RouteData.Values["action"]?.ToString() == "Usuarios" ? "active" : "")" href="@Url.Action("Usuarios","Home")">
+                                            <i class="fas fa-users me-2"></i>Usuario
+                                        </a>
+                                    }
+                                    @if (Permiso.Tiene("ADMIN_ROLES"))
+                                    {
+                                        <a class="nav-link @(ViewContext.RouteData.Values["action"]?.ToString() == "Roles" ? "active" : "")" href="@Url.Action("Roles","Home")">
+                                            <i class="fas fa-user-tag me-2"></i>Rol
+                                        </a>
+                                    }
+                                    @if (Permiso.Tiene("ADMIN_ROLES"))
+                                    {
+                                        <a class="nav-link @(ViewContext.RouteData.Values["action"]?.ToString() == "Permisos" ? "active" : "")" href="@Url.Action("Permisos","Home")">
+                                            <i class="fas fa-solid fa-user-lock me-2"></i>Registro de Permisos
+                                        </a>
+                                    }
+                                    @if (Permiso.Tiene("ADMIN_ROLES"))
+                                    {
+                                        <a class="nav-link @(ViewContext.RouteData.Values["action"]?.ToString() == "RolesPorPermisos" ? "active" : "")" href="@Url.Action("RolesPorPermisos","Home")">
+                                            <i class="fas fa-shield-alt me-2"></i>Permiso
+                                        </a>
+                                    }
                                 </nav>
                             </div>
                         }
@@ -211,21 +223,36 @@
                             </a>
                             <div class="collapse @(esOperaciones ? "show" : "")" id="collapseOperaciones" aria-labelledby="headingOne" data-bs-parent="#sidenavAccordion">
                                 <nav class="sb-sidenav-menu-nested nav">
-                                    <a class="nav-link @(ViewContext.RouteData.Values["action"]?.ToString() == "Ventas" ? "active" : "")" href="@Url.Action("Ventas","Operaciones")">
-                                        <i class="fas fa-shopping-bag me-2"></i>Venta
-                                    </a>
-                                    <a class="nav-link @(ViewContext.RouteData.Values["action"]?.ToString() == "Compras" ? "active" : "")" href="@Url.Action("Compras","Operaciones")">
-                                        <i class="fas fa-shopping-cart me-2"></i>Compra
-                                    </a>
-                                    <a class="nav-link @(ViewContext.RouteData.Values["action"]?.ToString() == "Clientes" ? "active" : "")" href="@Url.Action("Clientes","Operaciones")">
-                                        <i class="fas fa-users me-2"></i>Cliente
-                                    </a>
-                                    <a class="nav-link @(ViewContext.RouteData.Values["action"]?.ToString() == "Proveedores" ? "active" : "")" href="@Url.Action("Proveedores","Operaciones")">
-                                        <i class="fas fa-truck me-2"></i>Proveedor
-                                    </a>
-                                    <a class="nav-link @(ViewContext.RouteData.Values["action"]?.ToString() == "Stock" ? "active" : "")" href="@Url.Action("Stock","Operaciones")">
-                                        <i class="fas fa-boxes me-2"></i>Stock / Inventario
-                                    </a>
+                                    @if (Permiso.Tiene("VENTAS"))
+                                    {
+                                        <a class="nav-link @(ViewContext.RouteData.Values["action"]?.ToString() == "Ventas" ? "active" : "")" href="@Url.Action("Ventas","Operaciones")">
+                                            <i class="fas fa-shopping-bag me-2"></i>Venta
+                                        </a>
+                                    }
+                                    @if (Permiso.Tiene("COMPRAS"))
+                                    {
+                                        <a class="nav-link @(ViewContext.RouteData.Values["action"]?.ToString() == "Compras" ? "active" : "")" href="@Url.Action("Compras","Operaciones")">
+                                            <i class="fas fa-shopping-cart me-2"></i>Compra
+                                        </a>
+                                    }
+                                    @if (Permiso.Tiene("CLIENTES"))
+                                    {
+                                        <a class="nav-link @(ViewContext.RouteData.Values["action"]?.ToString() == "Clientes" ? "active" : "")" href="@Url.Action("Clientes","Operaciones")">
+                                            <i class="fas fa-users me-2"></i>Cliente
+                                        </a>
+                                    }
+                                    @if (Permiso.Tiene("PROVEEDORES"))
+                                    {
+                                        <a class="nav-link @(ViewContext.RouteData.Values["action"]?.ToString() == "Proveedores" ? "active" : "")" href="@Url.Action("Proveedores","Operaciones")">
+                                            <i class="fas fa-truck me-2"></i>Proveedor
+                                        </a>
+                                    }
+                                    @if (Permiso.Tiene("STOCK"))
+                                    {
+                                        <a class="nav-link @(ViewContext.RouteData.Values["action"]?.ToString() == "Stock" ? "active" : "")" href="@Url.Action("Stock","Operaciones")">
+                                            <i class="fas fa-boxes me-2"></i>Stock / Inventario
+                                        </a>
+                                    }
                                 </nav>
                             </div>
                         }
@@ -241,12 +268,18 @@
                             </a>
                             <div class="collapse @(esFacturacion ? "show" : "")" id="collapseFacturacion" aria-labelledby="headingOne" data-bs-parent="#sidenavAccordion">
                                 <nav class="sb-sidenav-menu-nested nav">
-                                    <a class="nav-link @(esFacturacion && ViewContext.RouteData.Values["action"]?.ToString() == "Facturas" ? "active" : "")" href="@Url.Action("Facturas","Facturacion")">
-                                        <i class="fas fa-file-invoice-dollar me-2"></i>Facturas
-                                    </a>
-                                    <a class="nav-link @(esFacturacion && ViewContext.RouteData.Values["action"]?.ToString() == "Notas" ? "active" : "")" href="@Url.Action("Notas","Facturacion")">
-                                        <i class="fas fa-undo-alt me-2"></i>Notas crédito-débito
-                                    </a>
+                                    @if (Permiso.Tiene("FACTURAS_EMITIR", "FACTURAS_ANULAR"))
+                                    {
+                                        <a class="nav-link @(esFacturacion && ViewContext.RouteData.Values["action"]?.ToString() == "Facturas" ? "active" : "")" href="@Url.Action("Facturas","Facturacion")">
+                                            <i class="fas fa-file-invoice-dollar me-2"></i>Facturas
+                                        </a>
+                                    }
+                                    @if (Permiso.Tiene("FACTURAS_EMITIR", "FACTURAS_ANULAR"))
+                                    {
+                                        <a class="nav-link @(esFacturacion && ViewContext.RouteData.Values["action"]?.ToString() == "Notas" ? "active" : "")" href="@Url.Action("Notas","Facturacion")">
+                                            <i class="fas fa-undo-alt me-2"></i>Notas crédito-débito
+                                        </a>
+                                    }
                                     @if (puedeConfigurarFacturacion)
                                     {
                                         <a class="nav-link @(esFacturacion && ViewContext.RouteData.Values["action"]?.ToString() == "Homologacion" ? "active" : "")" href="@Url.Action("Homologacion","Facturacion")">

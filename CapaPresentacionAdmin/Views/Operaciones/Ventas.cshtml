@@ -203,6 +203,7 @@
 
 @section Scripts {
     <script>
+        var puedeEmitirFactura = @(CapaPresentacionAdmin.Filters.Permiso.Tiene("FACTURAS_EMITIR") ? "true" : "false");
         var listaClientesGlobal = [];
         var listaItemsGlobal = [];
         var tablaDetalleVenta;
@@ -318,7 +319,7 @@
                         {
                             "data": "codigo_barra",
                             "render": function (data, type, row) {
-                                return row.tipo_item === 'PRODUCTO' ? (data || '') : '';
+                                return row.tipo_item === 'PRODUCTO' ? esc(data) : '';
                             }
                         },
                         { "data": "tipo_item" },
@@ -423,7 +424,10 @@
                 contentType: 'application/json; charset=utf-8',
                 success: function (data) {
                     $(".card-body").LoadingOverlay("hide");
-                    if (data.operacionExitosa) {
+                    if (data.operacionExitosa && !puedeEmitirFactura) {
+                        limpiarTodo();
+                        Swal.fire("Venta Registrada", "La venta #" + data.idVenta + " se guardó correctamente.", "success");
+                    } else if (data.operacionExitosa) {
                         limpiarTodo();
                         Swal.fire({
                             icon: "success",

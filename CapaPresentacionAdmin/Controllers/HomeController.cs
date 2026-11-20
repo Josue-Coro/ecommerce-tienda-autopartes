@@ -24,20 +24,6 @@ namespace CapaPresentacionAdmin.Controllers
         //Dashboard
         public ActionResult Index()
         {
-            //validar que id_user_activo no sea null osea que el usuario haya iniciado sesion para poder entrar aqui
-            if (Session["Usuario"] == null)
-            {
-                return RedirectToAction("Index", "Acceso");
-            }
-            else
-            {
-                //validar que el usuario tenga un rol asignado
-                User_activo oUserActivo = (User_activo)Session["Usuario"];
-                if (oUserActivo.id_user_activo == 0)
-                {
-                    return RedirectToAction("Index", "Acceso");
-                }
-            }
             return View();
         }
         //DashboardResumen
@@ -91,28 +77,15 @@ namespace CapaPresentacionAdmin.Controllers
         //    //validar que el usuario tenga un rol asignado asignado como ADMINISTRADOR
         //    return View();
         //}
-        [ValidarSesion(Roles = "ADMINISTRADOR")]
+        [ValidarSesion(Permisos = "ADMIN_USUARIOS")]
         public ActionResult Usuarios()
         {
-            if (Session["Usuario"] == null)
-            {
-                return RedirectToAction("Index", "Acceso");
-            }
-            else
-            {
-                User_activo oUserActivo = (User_activo)Session["Usuario"];
-
-                if (oUserActivo.id_user_activo == 0 || oUserActivo.oRol == null || oUserActivo.oRol.nombre != "ADMINISTRADOR")
-                {
-                    return RedirectToAction("AccesoDenegado", "Home");
-                }
-            }
 
 
             return View();
         }
 
-        [ValidarSesion(Roles = "ADMINISTRADOR")]
+        [ValidarSesion(Permisos = "ADMIN_USUARIOS")]
         [HttpGet]
         public JsonResult ListarUsuarios()
         {
@@ -126,12 +99,16 @@ namespace CapaPresentacionAdmin.Controllers
             return Json(new { data = resultado }, JsonRequestBehavior.AllowGet);
 
         }
-        [ValidarSesion(Roles = "ADMINISTRADOR")]
+        [ValidarSesion(Permisos = "ADMIN_USUARIOS")]
         [HttpPost]
         public JsonResult GuardarUsuario(Usuario objeto)
         {
             object resultado;
             string Mensaje = string.Empty;
+
+            // Solo un administrador puede crear administradores o modificar a uno.
+            if (!PuedeGestionarUsuario(objeto.id_usuario, objeto.id_rol, out Mensaje))
+                return Json(new { resultado = 0, mensaje = Mensaje }, JsonRequestBehavior.AllowGet);
 
             if(objeto.id_usuario == 0)
             {
@@ -141,30 +118,69 @@ namespace CapaPresentacionAdmin.Controllers
             {
                 resultado = new CN_Usuarios().Editar(objeto, out Mensaje);
             }
+            CN_Autorizacion.Invalidar();   // un cambio de rol o de estado se aplica de inmediato
             return Json(new { resultado = resultado, mensaje = Mensaje }, JsonRequestBehavior.AllowGet);
 
         }
 
 
-        [ValidarSesion(Roles = "ADMINISTRADOR")]
+        /// <summary>
+        /// Evita la escalada de privilegios: quien administra usuarios sin ser administrador no puede asignar el rol
+        /// ADMINISTRADOR ni modificar, eliminar o cambiar la contraseña de un administrador.
+        /// </summary>
+        private bool PuedeGestionarUsuario(int idUsuario, int idRolNuevo, out string Mensaje)
+        {
+            Mensaje = string.Empty;
+            if (CN_Autorizacion.EsSuperusuario(Session["Usuario"] as User_activo))
+                return true;
+
+            bool destinoEsAdmin = false;
+            if (idUsuario > 0)
+            {
+                Usuario actual = new CN_Usuarios().Listar().FirstOrDefault(u => u.id_usuario == idUsuario);
+                destinoEsAdmin = actual != null && CN_Autorizacion.EsNombreReservado(actual.rol);
+            }
+            if (idRolNuevo > 0)
+            {
+                Roles rolNuevo = new CN_Roles().ObtenerPorId(idRolNuevo);
+                destinoEsAdmin |= rolNuevo != null && CN_Autorizacion.EsNombreReservado(rolNuevo.nombre);
+            }
+            if (destinoEsAdmin)
+            {
+                Mensaje = "Solo un administrador puede gestionar cuentas de administrador.";
+                return false;
+            }
+            return true;
+        }
+
+        [ValidarSesion(Permisos = "ADMIN_USUARIOS")]
         [HttpPost]
         public JsonResult EliminarUsuario(int id)
         {
             bool respuesta = false;
             string Mensaje = string.Empty;
 
+            if (!PuedeGestionarUsuario(id, 0, out Mensaje))
+                return Json(new { resultado = false, mensaje = Mensaje }, JsonRequestBehavior.AllowGet);
+            User_activo yo = Session["Usuario"] as User_activo;
+            if (yo != null && yo.id_user_activo == id)
+                return Json(new { resultado = false, mensaje = "No puede eliminar su propia cuenta." }, JsonRequestBehavior.AllowGet);
+
             respuesta = new CN_Usuarios().Eliminar(id, out Mensaje);
+            CN_Autorizacion.Invalidar();
 
             return Json(new { resultado = respuesta, mensaje = Mensaje }, JsonRequestBehavior.AllowGet);
         }
 
         //Actualizar contraseña
-        [ValidarSesion(Roles = "ADMINISTRADOR")]
+        [ValidarSesion(Permisos = "ADMIN_USUARIOS")]
         [HttpPost]
         public JsonResult ActualizarContraseña(Usuario objeto)
         {
             bool resultado = false;
             string Mensaje = string.Empty;
+            if (!PuedeGestionarUsuario(objeto.id_usuario, 0, out Mensaje))
+                return Json(new { resultado = false, mensaje = Mensaje }, JsonRequestBehavior.AllowGet);
             resultado = new CN_Usuarios().ActualizarContraseñaUsuario(objeto.id_usuario, objeto.correo, objeto.contraseña, out Mensaje);
             return Json(new { resultado = resultado, mensaje = Mensaje }, JsonRequestBehavior.AllowGet);
         }
@@ -174,27 +190,13 @@ namespace CapaPresentacionAdmin.Controllers
 
         #region ROL
         //ROLES
-        [ValidarSesion(Roles = "ADMINISTRADOR")]
+        [ValidarSesion(Permisos = "ADMIN_ROLES")]
         public ActionResult Roles()
         {
-            //validar que id_user_activo no sea null osea que el usuario haya iniciado sesion para poder entrar aqui
-            if (Session["Usuario"] == null)
-            {
-                return RedirectToAction("Index", "Acceso");
-            }
-            else
-            {
-                User_activo oUserActivo = (User_activo)Session["Usuario"];
-
-                if (oUserActivo.id_user_activo == 0 || oUserActivo.oRol == null || oUserActivo.oRol.nombre != "ADMINISTRADOR")
-                {
-                    return RedirectToAction("AccesoDenegado", "Home");
-                }
-            }
             return View();
         }
 
-        [ValidarSesion(Roles = "ADMINISTRADOR")]
+        [ValidarSesion(Permisos = "ADMIN_ROLES,ADMIN_USUARIOS")]
         [HttpGet]
         public JsonResult ListarRoles()
         {
@@ -204,7 +206,7 @@ namespace CapaPresentacionAdmin.Controllers
 
         }
 
-        [ValidarSesion(Roles = "ADMINISTRADOR")]
+        [ValidarSesion(Permisos = "ADMIN_ROLES")]
         [HttpPost]
         public JsonResult GuardarRol(Roles objeto)
         {
@@ -223,7 +225,7 @@ namespace CapaPresentacionAdmin.Controllers
 
         }
 
-        [ValidarSesion(Roles = "ADMINISTRADOR")]
+        [ValidarSesion(Permisos = "ADMIN_ROLES")]
         [HttpPost]
         public JsonResult EliminarRol(int id)
         {
@@ -238,28 +240,14 @@ namespace CapaPresentacionAdmin.Controllers
 
         #region PERMISOS
         //PERMISOS
-        [ValidarSesion(Roles = "ADMINISTRADOR")]
+        [ValidarSesion(Permisos = "ADMIN_ROLES")]
         public ActionResult Permisos()
         {
-            //validar que id_user_activo no sea null osea que el usuario haya iniciado sesion para poder entrar aqui
-            if (Session["Usuario"] == null)
-            {
-                return RedirectToAction("Index", "Acceso");
-            }
-            else
-            {
-                User_activo oUserActivo = (User_activo)Session["Usuario"];
-
-                if (oUserActivo.id_user_activo == 0 || oUserActivo.oRol == null || oUserActivo.oRol.nombre != "ADMINISTRADOR")
-                {
-                    return RedirectToAction("AccesoDenegado", "Home");
-                }
-            }
 
 
             return View();
         }
-        [ValidarSesion(Roles = "ADMINISTRADOR")]
+        [ValidarSesion(Permisos = "ADMIN_ROLES")]
         [HttpGet]
         public JsonResult ListarPermisos()
         {
@@ -268,7 +256,7 @@ namespace CapaPresentacionAdmin.Controllers
             return Json(new { data = olista }, JsonRequestBehavior.AllowGet);
         }
 
-        [ValidarSesion(Roles = "ADMINISTRADOR")]
+        [ValidarSesion(Permisos = "ADMIN_ROLES")]
         [HttpPost]
         public JsonResult GuardarPermiso(Permisos objeto)
         {
@@ -287,7 +275,7 @@ namespace CapaPresentacionAdmin.Controllers
             return Json(new { resultado = resultado, mensaje = Mensaje }, JsonRequestBehavior.AllowGet);
         }
 
-        [ValidarSesion(Roles = "ADMINISTRADOR")]
+        [ValidarSesion(Permisos = "ADMIN_ROLES")]
         [HttpPost]
         public JsonResult EliminarPermiso(int id)
         {
@@ -303,26 +291,13 @@ namespace CapaPresentacionAdmin.Controllers
 
 
 
-        [ValidarSesion(Roles = "ADMINISTRADOR")]
+        [ValidarSesion(Permisos = "ADMIN_ROLES")]
         public ActionResult RolesPorPermisos()
         {
-            if (Session["Usuario"] == null)
-            {
-                return RedirectToAction("Index", "Acceso");
-            }
-            else
-            {
-                User_activo oUserActivo = (User_activo)Session["Usuario"];
-
-                if (oUserActivo.id_user_activo == 0 || oUserActivo.oRol == null || oUserActivo.oRol.nombre != "ADMINISTRADOR")
-                {
-                    return RedirectToAction("AccesoDenegado", "Home");
-                }
-            }
             return View(); 
         }
 
-        [ValidarSesion(Roles = "ADMINISTRADOR")]
+        [ValidarSesion(Permisos = "ADMIN_ROLES")]
         [HttpGet]
         public JsonResult ListarRolesPermisos()
         {
@@ -333,7 +308,7 @@ namespace CapaPresentacionAdmin.Controllers
         }
 
 
-        [ValidarSesion(Roles = "ADMINISTRADOR")]
+        [ValidarSesion(Permisos = "ADMIN_ROLES")]
         [HttpGet]
         public JsonResult ObtenerPermisosPorRol(int idRol)
         {
@@ -361,7 +336,7 @@ namespace CapaPresentacionAdmin.Controllers
         }
 
         // Método AJAX para guardar las asignaciones de permisos a un rol
-        [ValidarSesion(Roles = "ADMINISTRADOR")]
+        [ValidarSesion(Permisos = "ADMIN_ROLES")]
         [HttpPost]
         public JsonResult GuardarPermisosRol(int idRol, List<int> idsPermisos)
         {
@@ -379,18 +354,6 @@ namespace CapaPresentacionAdmin.Controllers
         //PrivacyPolicy
         public ActionResult PrivacyPolicy()
         {
-            if (Session["Usuario"] == null)
-            {
-                return RedirectToAction("Index", "Acceso");
-            }
-            else
-            {
-                User_activo oUserActivo = (User_activo)Session["Usuario"];
-                if (oUserActivo.id_user_activo == 0)
-                {
-                    return RedirectToAction("Index", "Acceso");
-                }
-            }
             return View();
         }
         #endregion
@@ -401,18 +364,6 @@ namespace CapaPresentacionAdmin.Controllers
         // TermsAndConditions
         public ActionResult TermsAndConditions()
         {
-            if (Session["Usuario"] == null)
-            {
-                return RedirectToAction("Index", "Acceso");
-            }
-            else
-            {
-                User_activo oUserActivo = (User_activo)Session["Usuario"];
-                if (oUserActivo.id_user_activo == 0)
-                {
-                    return RedirectToAction("Index", "Acceso");
-                }
-            }
             return View();
         }
         #endregion
@@ -420,18 +371,6 @@ namespace CapaPresentacionAdmin.Controllers
         #region Acceso Denegado
         public ActionResult AccesoDenegado()
         {
-            if (Session["Usuario"] == null)
-            {
-                return RedirectToAction("Index", "Acceso");
-            }
-            else
-            {
-                User_activo oUserActivo = (User_activo)Session["Usuario"];
-                if (oUserActivo.id_user_activo == 0)
-                {
-                    return RedirectToAction("Index", "Acceso");
-                }
-            }
             return View();
         }
         #endregion

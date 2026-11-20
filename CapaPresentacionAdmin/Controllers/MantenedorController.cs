@@ -17,7 +17,7 @@ using CapaPresentacionAdmin.Filters;
 namespace CapaPresentacionAdmin.Controllers
 {
     //[Authorize]
-    [ValidarSesion(Roles = "ADMINISTRADOR,GERENTE")]
+    [ValidarSesion(Permisos = "MANTENEDOR")]
     public class MantenedorController : Controller
     {
         // GET: Mantenedor
@@ -26,20 +26,6 @@ namespace CapaPresentacionAdmin.Controllers
         //CATEGORIA
         public ActionResult Categorias()
         {
-            //validar que id_user_activo no sea null osea que el usuario haya iniciado sesion para poder entrar aqui
-            if (Session["Usuario"] == null)
-            {
-                return RedirectToAction("Index", "Acceso");
-            }
-            else
-            {
-                User_activo oUserActivo = (User_activo)Session["Usuario"];
-
-                if (oUserActivo.id_user_activo == 0 || oUserActivo.oRol == null || oUserActivo.oRol.nombre != "GERENTE" && oUserActivo.oRol.nombre != "ADMINISTRADOR")
-                {
-                    return RedirectToAction("AccesoDenegado", "Home");
-                }
-            }
 
 
             return View();
@@ -90,20 +76,6 @@ namespace CapaPresentacionAdmin.Controllers
         //MARCAS
         public ActionResult Marcas() 
         {
-            //validar que id_user_activo no sea null osea que el usuario haya iniciado sesion para poder entrar aqui
-            if(Session["Usuario"] == null)
-            {
-                return RedirectToAction("Index", "Acceso");
-            }
-            else
-            {
-                User_activo oUserActivo = (User_activo)Session["Usuario"];
-
-                if (oUserActivo.id_user_activo == 0 || oUserActivo.oRol == null || oUserActivo.oRol.nombre != "ADMINISTRADOR" && oUserActivo.oRol.nombre != "GERENTE")
-                {
-                    return RedirectToAction("AccesoDenegado", "Home");
-                }
-            }
 
 
             return View();
@@ -155,25 +127,11 @@ namespace CapaPresentacionAdmin.Controllers
         //PRODUCTOS
         public ActionResult Productos()
         {
-            //validar que id_user_activo no sea null osea que el usuario haya iniciado sesion para poder entrar aqui
-            if (Session["Usuario"] == null)
-            {
-                return RedirectToAction("Index", "Acceso");
-            }
-            else
-            {
-                User_activo oUserActivo = (User_activo)Session["Usuario"];
-
-                if (oUserActivo.id_user_activo == 0 || oUserActivo.oRol == null || oUserActivo.oRol.nombre != "ADMINISTRADOR" && oUserActivo.oRol.nombre != "GERENTE")
-                {
-                    return RedirectToAction("AccesoDenegado", "Home");
-                }
-            }
 
 
             return View();
         }
-        [ValidarSesion(Roles = "ADMINISTRADOR,GERENTE,VENDEDOR")]
+        [ValidarSesion(Permisos = "MANTENEDOR,VENTAS,COMPRAS,STOCK")]
         [HttpGet]
         public JsonResult ListarProductos()
         {
@@ -364,27 +322,13 @@ namespace CapaPresentacionAdmin.Controllers
         //SERVICIOS
         public ActionResult Servicios()
         {
-            //validar que id_user_activo no sea null osea que el usuario haya iniciado sesion para poder entrar aqui
-            if(Session["Usuario"] == null)
-            {
-                return RedirectToAction("Index", "Acceso");
-            }
-            else
-            {
-                User_activo oUserActivo = (User_activo)Session["Usuario"];
-
-                if (oUserActivo.id_user_activo == 0 || oUserActivo.oRol == null || oUserActivo.oRol.nombre != "ADMINISTRADOR" && oUserActivo.oRol.nombre != "GERENTE")
-                {
-                    return RedirectToAction("AccesoDenegado", "Home");
-                }
-            }
 
 
             return View();
         }
 
 
-        [ValidarSesion(Roles = "ADMINISTRADOR,GERENTE,VENDEDOR")]
+        [ValidarSesion(Permisos = "MANTENEDOR,VENTAS")]
         [HttpGet]
         public JsonResult ListarServicios()
         {
@@ -440,26 +384,12 @@ namespace CapaPresentacionAdmin.Controllers
         //TIPOS DE PAGO
         public ActionResult TipoPago()
         {
-            //validar que id_user_activo no sea null osea que el usuario haya iniciado sesion para poder entrar aqui
-            if(Session["Usuario"] == null)
-            {
-                return RedirectToAction("Index", "Acceso");
-            }
-            else
-            {
-                User_activo oUserActivo = (User_activo)Session["Usuario"];
-
-                if (oUserActivo.id_user_activo == 0 || oUserActivo.oRol == null || oUserActivo.oRol.nombre != "ADMINISTRADOR" && oUserActivo.oRol.nombre != "GERENTE")
-                {
-                    return RedirectToAction("AccesoDenegado", "Home");
-                }
-            }
 
 
             return View();
         }
 
-        [ValidarSesion(Roles = "ADMINISTRADOR,GERENTE,VENDEDOR")]
+        [ValidarSesion(Permisos = "MANTENEDOR,VENTAS,COMPRAS")]
         [HttpGet]
         public JsonResult ListarTP()
         {
@@ -507,25 +437,11 @@ namespace CapaPresentacionAdmin.Controllers
         //TIENDAS
         public ActionResult Tiendas()
         {
-            //validar que id_user_activo no sea null osea que el usuario haya iniciado sesion para poder entrar aqui
-            if(Session["Usuario"] == null)
-            {
-                return RedirectToAction("Index", "Acceso");
-            }
-            else
-            {
-                User_activo oUserActivo = (User_activo)Session["Usuario"];
-
-                if (oUserActivo.id_user_activo == 0 || oUserActivo.oRol == null || oUserActivo.oRol.nombre != "ADMINISTRADOR" && oUserActivo.oRol.nombre != "GERENTE")
-                {
-                    return RedirectToAction("AccesoDenegado", "Home");
-                }
-            }
 
 
             return View();
         }
-        [ValidarSesion(Roles = "ADMINISTRADOR,GERENTE,VENDEDOR")]
+        [ValidarSesion(Permisos = "MANTENEDOR,STOCK,ADMIN_USUARIOS")]
         [HttpGet]
         public JsonResult ListarTiendas()
         {
@@ -567,20 +483,6 @@ namespace CapaPresentacionAdmin.Controllers
         //UNIDAD DE MEDIDA
         public ActionResult UnidadMedida()
         {
-            //validar que id_user_activo no sea null osea que el usuario haya iniciado sesion para poder entrar aqui
-            if(Session["Usuario"] == null)
-            {
-                return RedirectToAction("Index", "Acceso");
-            }
-            else
-            {
-                User_activo oUserActivo = (User_activo)Session["Usuario"];
-
-                if (oUserActivo.id_user_activo == 0 || oUserActivo.oRol == null || oUserActivo.oRol.nombre != "ADMINISTRADOR" && oUserActivo.oRol.nombre != "GERENTE")
-                {
-                    return RedirectToAction("AccesoDenegado", "Home");
-                }
-            }
 
 
             return View();

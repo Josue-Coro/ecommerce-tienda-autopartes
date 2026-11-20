@@ -1,7 +1,7 @@
-@{
+﻿@{
     ViewBag.Title = "Libro diario";
     Layout = "~/Views/Shared/_Layout.cshtml";
-    bool puedeCerrar = Session["NombreRol"]?.ToString() == "ADMINISTRADOR" || Session["NombreRol"]?.ToString() == "GERENTE";
+    bool puedeCerrar = CapaPresentacionAdmin.Filters.Permiso.Tiene("CONTABILIDAD_CIERRE");
 }
 @Html.Partial("~/Views/Contabilidad/_Utilidades.cshtml")
 
