@@ -14,10 +14,12 @@ using System.IO;
 using OfficeOpenXml;
 using OfficeOpenXml.Style;
 using System.Drawing;
+using CapaPresentacionAdmin.Filters;
 
 namespace CapaPresentacionAdmin.Controllers
 {
     //[Authorize]
+    [ValidarSesion(Roles = "ADMINISTRADOR,GERENTE,VENDEDOR")]
     public class OperacionesController : Controller
     {
         // GET: Operaciones
@@ -308,6 +310,7 @@ namespace CapaPresentacionAdmin.Controllers
 
         private CN_Reporte objCnReporte = new CN_Reporte();
 
+        [ValidarSesion(Roles = "ADMINISTRADOR,GERENTE")]
         public ActionResult ExportarHistorialVentasExcel(string fechaInicio, string fechaFin, string idVenta)
         {
             //usar el método de ObtenerVenta del public class CN_Venta en capa de negocio, unicamente pasando el idVenta, 
@@ -413,6 +416,7 @@ namespace CapaPresentacionAdmin.Controllers
         }
 
         //HistorialCompras
+        [ValidarSesion(Roles = "ADMINISTRADOR,GERENTE")]
         [HttpGet]
         public JsonResult ObtenerHistorialCompras(string fechaInicio, string fechaFin, string idCompra)
         {
@@ -422,6 +426,7 @@ namespace CapaPresentacionAdmin.Controllers
             return Json(new { data = lista }, JsonRequestBehavior.AllowGet);
         }
         
+        [ValidarSesion(Roles = "ADMINISTRADOR,GERENTE")]
         public ActionResult ExportarHistorialComprasExcel(string fechaInicio, string fechaFin, string idCompra)
         {
             List<ReporteCompraDetalle> listaCompras = objCnReporte.ObtenerHistorialCompras(fechaInicio, fechaFin, idCompra);
@@ -668,6 +673,7 @@ namespace CapaPresentacionAdmin.Controllers
 
         #region Reportes
         //Reporte de Ventas
+        [ValidarSesion(Roles = "ADMINISTRADOR,GERENTE")]
         public ActionResult ReporteVentas()
         {
             //validar que id_user_activo no sea null osea que el usuario haya iniciado sesion para poder entrar aqui
@@ -690,6 +696,7 @@ namespace CapaPresentacionAdmin.Controllers
         
 
         //Reporte de Compras
+        [ValidarSesion(Roles = "ADMINISTRADOR,GERENTE")]
         public ActionResult ReporteCompras()
         {
             //validar que id_user_activo no sea null osea que el usuario haya iniciado sesion para poder entrar aqui

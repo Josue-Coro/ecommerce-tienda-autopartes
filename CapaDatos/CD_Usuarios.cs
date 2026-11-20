@@ -289,6 +289,43 @@ namespace CapaDatos
         END;
         GO
         */
+        /// <summary>
+        /// Devuelve el id y el hash guardado de un usuario activo, para verificar la contraseña en la capa de negocio
+        /// (PBKDF2 con sal no puede compararse en SQL). Devuelve false si el correo no existe o el usuario está inactivo.
+        /// </summary>
+        public bool ObtenerCredencial(string correo, out int idUsuario, out string hashGuardado)
+        {
+            idUsuario = 0;
+            hashGuardado = null;
+            using (SqlConnection oconexion = new SqlConnection(Conexion.cn))
+            {
+                SqlCommand cmd = new SqlCommand(
+                    "SELECT TOP 1 id_usuario, contraseña FROM SEGURIDAD.USUARIO WHERE correo = @Correo AND estado = 1", oconexion);
+                cmd.Parameters.Add("@Correo", SqlDbType.VarChar, 100).Value = correo ?? "";
+                oconexion.Open();
+                using (SqlDataReader dr = cmd.ExecuteReader())
+                {
+                    if (!dr.Read()) return false;
+                    idUsuario = Convert.ToInt32(dr["id_usuario"]);
+                    hashGuardado = dr["contraseña"].ToString();
+                    return true;
+                }
+            }
+        }
+
+        /// <summary>Reemplaza el hash de la contraseña (migración de SHA-256 a PBKDF2).</summary>
+        public void ActualizarHash(int idUsuario, string nuevoHash)
+        {
+            using (SqlConnection oconexion = new SqlConnection(Conexion.cn))
+            {
+                SqlCommand cmd = new SqlCommand("UPDATE SEGURIDAD.USUARIO SET contraseña = @Hash WHERE id_usuario = @Id", oconexion);
+                cmd.Parameters.Add("@Hash", SqlDbType.VarChar, 150).Value = nuevoHash;
+                cmd.Parameters.AddWithValue("@Id", idUsuario);
+                oconexion.Open();
+                cmd.ExecuteNonQuery();
+            }
+        }
+
         public User_activo ValidarUsuario(string correo, string contraseña)
         {
             User_activo oUsuario = null;

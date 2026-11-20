@@ -52,7 +52,8 @@ namespace CapaNegocio
             {
 
 
-                string clave = CN_Recursos.GenerarClave();
+                // Contraseña temporal fuerte (antes eran 6 caracteres hexadecimales).
+                string clave = CN_Seguridad.GenerarContraseñaTemporal();
 
                 string asunto = "Creacion de Cuenta";
                 string mensaje = "<h3>Su cuenta fue creada correctamente</h3></br><p>Su contraseña para acceder es: !clave!</p>";
@@ -62,7 +63,7 @@ namespace CapaNegocio
 
                 if (respuesta)
                 {
-                    obj.contraseña = CN_Recursos.ConvertirSha256(clave);
+                    obj.contraseña = CN_Seguridad.HashContraseña(clave);
                     return objUsuario.Registrar(obj, out Mensaje);
                 }else {
                     Mensaje = "Error al enviar el correo, por favor verifique su correo electronico";
@@ -127,11 +128,27 @@ namespace CapaNegocio
 
 
         //validar usuario - AQUI ES DONDE HACEMOS EL CAMBIO CLAVE
+        /// <param name="contraseña">Contraseña en texto plano tal como la escribió el usuario.</param>
         public User_activo ValidarUsuario(string correo, string contraseña)
         {
-            // 1. Llama a la CapaDatos para la validación básica y obtener los IDs básicos del usuario.
+            // 1. Se verifica la contraseña aquí (PBKDF2 con sal, o el SHA-256 antiguo que se migra al vuelo).
+            int idUsuario;
+            string hashGuardado;
+            bool requiereMigracion;
+            if (!objUsuario.ObtenerCredencial(correo, out idUsuario, out hashGuardado)
+                || !CN_Seguridad.Verificar(contraseña, hashGuardado, out requiereMigracion))
+                return null;
+
+            if (requiereMigracion)
+            {
+                string nuevoHash = CN_Seguridad.HashContraseña(contraseña);
+                objUsuario.ActualizarHash(idUsuario, nuevoHash);
+                hashGuardado = nuevoHash;
+            }
+
+            // 2. El procedimiento existente compara el hash guardado y devuelve los datos del usuario.
             // En este punto, 'usuarioBase' solo tendrá id_user_activo, id_tienda_user, correo, y oRol con solo el id_rol.
-            User_activo usuarioBase = objUsuario.ValidarUsuario(correo, contraseña);
+            User_activo usuarioBase = objUsuario.ValidarUsuario(correo, hashGuardado);
 
             // 2. Si se encontró un usuario y su ID de rol es válido
             if (usuarioBase != null && usuarioBase.oRol != null && usuarioBase.oRol.id_rol > 0)
@@ -177,24 +194,36 @@ namespace CapaNegocio
             if (!string.IsNullOrEmpty(Mensaje))
                 return false;
 
-            //encriptar contraseñas
-            string contraseñaActualHash = CN_Recursos.ConvertirSha256(contraseñaActual);
-            string nuevaContraseñaHash = CN_Recursos.ConvertirSha256(nuevaContraseña);
+            if (!CN_Seguridad.CumplePolitica(nuevaContraseña, out Mensaje))
+                return false;
+
+            // La contraseña actual se verifica aquí; el procedimiento recibe el hash guardado para identificar al usuario.
+            int idUsuario;
+            string hashGuardado;
+            bool requiereMigracion;
+            if (!objUsuario.ObtenerCredencial(correo, out idUsuario, out hashGuardado)
+                || !CN_Seguridad.Verificar(contraseñaActual, hashGuardado, out requiereMigracion))
+            {
+                Mensaje = "La contraseña actual es incorrecta.";
+                return false;
+            }
+
+            string nuevaContraseñaHash = CN_Seguridad.HashContraseña(nuevaContraseña);
 
             //capa de datos
-            bool resultado = objUsuario.CambiarContraseña(correo, contraseñaActualHash, nuevaContraseñaHash, out Mensaje);
+            bool resultado = objUsuario.CambiarContraseña(correo, hashGuardado, nuevaContraseñaHash, out Mensaje);
 
-            //enviar correo
+            // Aviso por correo, sin incluir la contraseña.
             if (resultado)
             {
-                string asunto = "Cambio de contraseña"; 
-                string mensaje = "<h3>Su contraseña fue cambiada correctamente</h3><br/><p>Su nueva contraseña es: <strong>" + nuevaContraseña + "</strong></p>";
+                string asunto = "Cambio de contraseña";
+                string mensaje = "<h3>Su contraseña fue cambiada correctamente</h3><p>Si usted no realizó este cambio, comuníquese de inmediato con el administrador.</p>";
 
                 bool envioCorreo = CN_Recursos.EnviarCorreo(correo, asunto, mensaje);
 
                 if (!envioCorreo)
                 {
-                    Mensaje = "La contraseña fue actualizada, pero hubo un error al enviar el correo.";
+                    Mensaje = "La contraseña fue actualizada, pero hubo un error al enviar el correo de aviso.";
                 }
             }
 
@@ -222,8 +251,11 @@ namespace CapaNegocio
             if (!string.IsNullOrEmpty(Mensaje))
                 return false;
 
-            //encriptar la nueva contraseña
-            string nuevaContraseñaHash = CN_Recursos.ConvertirSha256(nuevaContraseña);
+            if (!CN_Seguridad.CumplePolitica(nuevaContraseña, out Mensaje))
+                return false;
+
+            //hash de la nueva contraseña (PBKDF2 con sal)
+            string nuevaContraseñaHash = CN_Seguridad.HashContraseña(nuevaContraseña);
 
             //capa de datos
             bool resultado = objUsuario.ActualizarContraseñaUsuario(idUsuario, correo, nuevaContraseñaHash, out Mensaje);

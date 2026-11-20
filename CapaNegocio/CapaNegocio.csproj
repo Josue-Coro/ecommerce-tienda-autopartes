@@ -32,6 +32,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
+    <Reference Include="System.Configuration" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
@@ -50,6 +51,7 @@
     <Compile Include="CN_Producto.cs" />
     <Compile Include="CN_Proveedores.cs" />
     <Compile Include="CN_Recursos.cs" />
+    <Compile Include="CN_Seguridad.cs" />
     <Compile Include="CN_Reporte.cs" />
     <Compile Include="CN_Roles.cs" />
     <Compile Include="CN_RolesPermisos.cs" />

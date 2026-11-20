@@ -7,6 +7,7 @@ using System.Web.Security;
 
 using CapaEntidad;
 using CapaNegocio;
+using CapaPresentacionAdmin.Filters;
 
 namespace CapaPresentacionAdmin.Controllers
 {
@@ -22,18 +23,29 @@ namespace CapaPresentacionAdmin.Controllers
         }
         
         [HttpPost]
+        [PermitirPostSinAjax]
+        [ValidateAntiForgeryToken]
         public ActionResult Index(string correo, string contraseña)
         {
 
-            User_activo oUserActivo = new User_activo();
+            correo = (correo ?? "").Trim();
+            string claveBloqueo = "correo:" + correo;
+            string claveOrigen = "ip:" + Request.UserHostAddress;
+            int minutos;
+            if (CN_Seguridad.EstaBloqueado(claveBloqueo, out minutos) || CN_Seguridad.EstaBloqueado(claveOrigen, out minutos))
+            {
+                ViewBag.Error = "Demasiados intentos fallidos. Intente nuevamente en " + minutos + " minuto(s).";
+                return View();
+            }
 
-            string contraseñaEncriptada = CN_Recursos.ConvertirSha256(contraseña);
-
-            oUserActivo = new CN_Usuarios().ValidarUsuario(correo, contraseñaEncriptada);
+            // La contraseña se verifica en la capa de negocio (PBKDF2; los hashes antiguos se migran al iniciar sesión).
+            User_activo oUserActivo = new CN_Usuarios().ValidarUsuario(correo, contraseña);
 
             
             if (oUserActivo == null)
             {
+                CN_Seguridad.RegistrarFallo(claveBloqueo);
+                CN_Seguridad.RegistrarFallo(claveOrigen);
                 ViewBag.Error = "Correo o contraseña incorrectos, o el usuario se encuentra inactivo. Por favor, verifique sus datos e intente nuevamente.";
                 return View();
             }
@@ -48,6 +60,8 @@ namespace CapaPresentacionAdmin.Controllers
                 }
                 else
                 {
+                    CN_Seguridad.RegistrarExito(claveBloqueo);
+                    CN_Seguridad.RegistrarExito(claveOrigen);
                     Session["Usuario"] = oUserActivo;
                     //Session["Usuario"] = oUsuario; guarda el objeto en la session para poder usarlo en otras vistas
                     //juntarlo con el apellido del usuario
@@ -75,6 +89,7 @@ namespace CapaPresentacionAdmin.Controllers
             //return View();
         }
 
+        [ValidarSesion]
         public ActionResult CambiarContraseña()
         {
             //validar que id_user_activo no sea null osea que el usuario haya iniciado sesion para poder entrar aqui
@@ -95,9 +110,15 @@ namespace CapaPresentacionAdmin.Controllers
         }
 
         [HttpPost]
+        [ValidarSesion]
+        [PermitirPostSinAjax]
+        [ValidateAntiForgeryToken]
         public ActionResult CambiarContraseña(string correo, string contraseñaActual, string nuevaContraseña, string confirmarContraseña)
         {
             string mensaje = string.Empty;
+
+            // Solo se puede cambiar la contraseña de la cuenta con la sesión iniciada (se ignora el correo enviado).
+            correo = ((User_activo)Session["Usuario"]).correo;
 
             //validaciones
             if (string.IsNullOrWhiteSpace(correo) ||

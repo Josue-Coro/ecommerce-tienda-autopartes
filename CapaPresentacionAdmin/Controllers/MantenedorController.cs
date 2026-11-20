@@ -10,12 +10,14 @@ using System.IO;
 using System.Linq;
 using System.Web;
 using System.Web.Mvc;
+using CapaPresentacionAdmin.Filters;
 
 
 
 namespace CapaPresentacionAdmin.Controllers
 {
     //[Authorize]
+    [ValidarSesion(Roles = "ADMINISTRADOR,GERENTE")]
     public class MantenedorController : Controller
     {
         // GET: Mantenedor
@@ -171,6 +173,7 @@ namespace CapaPresentacionAdmin.Controllers
 
             return View();
         }
+        [ValidarSesion(Roles = "ADMINISTRADOR,GERENTE,VENDEDOR")]
         [HttpGet]
         public JsonResult ListarProductos()
         {
@@ -209,6 +212,13 @@ namespace CapaPresentacionAdmin.Controllers
             if (oproducto.precio <= 0)
             {
                 return Json(new { operacion_exitosa = false, mensaje = "El precio del producto debe ser mayor a cero" }, JsonRequestBehavior.AllowGet);
+            }
+
+            // Solo imágenes (por extensión y por contenido) y de hasta 5 MB.
+            string errorImagen;
+            if (archivoImagen != null && !ImagenValida(archivoImagen, out errorImagen))
+            {
+                return Json(new { operacionExitosa = false, idgenerado = 0, mensaje = errorImagen }, JsonRequestBehavior.AllowGet);
             }
 
             if (oproducto.id_producto == 0)
@@ -253,6 +263,42 @@ namespace CapaPresentacionAdmin.Controllers
             }
 
             return Json(new { operacionExitosa = operacion_exitosa, idgenerado = oproducto.id_producto, mensaje = Mensaje }, JsonRequestBehavior.AllowGet);
+        }
+
+        private const int TamanoMaximoImagen = 5 * 1024 * 1024;
+
+        /// <summary>Acepta JPG, PNG, GIF o WEBP: valida extensión, tamaño y la firma real del archivo (no solo el nombre).</summary>
+        private static bool ImagenValida(HttpPostedFileBase archivo, out string Mensaje)
+        {
+            Mensaje = string.Empty;
+            string extension = (Path.GetExtension(archivo.FileName) ?? "").ToLowerInvariant();
+            string[] permitidas = { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+            if (Array.IndexOf(permitidas, extension) < 0)
+            {
+                Mensaje = "Formato de imagen no permitido. Use JPG, PNG, GIF o WEBP.";
+                return false;
+            }
+            if (archivo.ContentLength <= 0 || archivo.ContentLength > TamanoMaximoImagen)
+            {
+                Mensaje = "La imagen debe pesar como máximo 5 MB.";
+                return false;
+            }
+
+            byte[] c = new byte[12];
+            int leidos = archivo.InputStream.Read(c, 0, c.Length);
+            archivo.InputStream.Position = 0;
+            bool firma =
+                (leidos >= 3 && c[0] == 0xFF && c[1] == 0xD8 && c[2] == 0xFF) ||                                    // JPG
+                (leidos >= 8 && c[0] == 0x89 && c[1] == 0x50 && c[2] == 0x4E && c[3] == 0x47) ||                    // PNG
+                (leidos >= 6 && c[0] == 0x47 && c[1] == 0x49 && c[2] == 0x46 && c[3] == 0x38) ||                    // GIF
+                (leidos >= 12 && c[0] == 0x52 && c[1] == 0x49 && c[2] == 0x46 && c[3] == 0x46
+                              && c[8] == 0x57 && c[9] == 0x45 && c[10] == 0x42 && c[11] == 0x50);                   // WEBP
+            if (!firma)
+            {
+                Mensaje = "El archivo no es una imagen válida.";
+                return false;
+            }
+            return true;
         }
 
 
@@ -338,6 +384,7 @@ namespace CapaPresentacionAdmin.Controllers
         }
 
 
+        [ValidarSesion(Roles = "ADMINISTRADOR,GERENTE,VENDEDOR")]
         [HttpGet]
         public JsonResult ListarServicios()
         {
@@ -412,6 +459,7 @@ namespace CapaPresentacionAdmin.Controllers
             return View();
         }
 
+        [ValidarSesion(Roles = "ADMINISTRADOR,GERENTE,VENDEDOR")]
         [HttpGet]
         public JsonResult ListarTP()
         {
@@ -477,6 +525,7 @@ namespace CapaPresentacionAdmin.Controllers
 
             return View();
         }
+        [ValidarSesion(Roles = "ADMINISTRADOR,GERENTE,VENDEDOR")]
         [HttpGet]
         public JsonResult ListarTiendas()
         {

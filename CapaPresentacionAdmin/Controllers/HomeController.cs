@@ -12,10 +12,12 @@ using System.Drawing;
 using System.IO;
 
 using CapaPresentacionAdmin.ViewModels;
+using CapaPresentacionAdmin.Filters;
 
 namespace CapaPresentacionAdmin.Controllers
 {
     //[Authorize]
+    [ValidarSesion]
     public class HomeController : Controller
     {
         #region Dashboard
@@ -89,6 +91,7 @@ namespace CapaPresentacionAdmin.Controllers
         //    //validar que el usuario tenga un rol asignado asignado como ADMINISTRADOR
         //    return View();
         //}
+        [ValidarSesion(Roles = "ADMINISTRADOR")]
         public ActionResult Usuarios()
         {
             if (Session["Usuario"] == null)
@@ -109,14 +112,21 @@ namespace CapaPresentacionAdmin.Controllers
             return View();
         }
 
+        [ValidarSesion(Roles = "ADMINISTRADOR")]
         [HttpGet]
         public JsonResult ListarUsuarios()
         {
             List<Usuario> olista = new List<Usuario>();
             olista = new CN_Usuarios().Listar();
-            return Json(new { data = olista }, JsonRequestBehavior.AllowGet);
+            // Nunca se envía el hash de la contraseña al navegador.
+            var resultado = olista.Select(u => new
+            {
+                u.id_usuario, u.nombres, u.apellidos, u.correo, u.telefono, u.estado, u.id_rol, u.rol, u.id_tienda, u.tienda
+            }).ToList();
+            return Json(new { data = resultado }, JsonRequestBehavior.AllowGet);
 
         }
+        [ValidarSesion(Roles = "ADMINISTRADOR")]
         [HttpPost]
         public JsonResult GuardarUsuario(Usuario objeto)
         {
@@ -136,6 +146,7 @@ namespace CapaPresentacionAdmin.Controllers
         }
 
 
+        [ValidarSesion(Roles = "ADMINISTRADOR")]
         [HttpPost]
         public JsonResult EliminarUsuario(int id)
         {
@@ -148,6 +159,7 @@ namespace CapaPresentacionAdmin.Controllers
         }
 
         //Actualizar contraseña
+        [ValidarSesion(Roles = "ADMINISTRADOR")]
         [HttpPost]
         public JsonResult ActualizarContraseña(Usuario objeto)
         {
@@ -162,6 +174,7 @@ namespace CapaPresentacionAdmin.Controllers
 
         #region ROL
         //ROLES
+        [ValidarSesion(Roles = "ADMINISTRADOR")]
         public ActionResult Roles()
         {
             //validar que id_user_activo no sea null osea que el usuario haya iniciado sesion para poder entrar aqui
@@ -181,6 +194,7 @@ namespace CapaPresentacionAdmin.Controllers
             return View();
         }
 
+        [ValidarSesion(Roles = "ADMINISTRADOR")]
         [HttpGet]
         public JsonResult ListarRoles()
         {
@@ -190,6 +204,7 @@ namespace CapaPresentacionAdmin.Controllers
 
         }
 
+        [ValidarSesion(Roles = "ADMINISTRADOR")]
         [HttpPost]
         public JsonResult GuardarRol(Roles objeto)
         {
@@ -208,6 +223,7 @@ namespace CapaPresentacionAdmin.Controllers
 
         }
 
+        [ValidarSesion(Roles = "ADMINISTRADOR")]
         [HttpPost]
         public JsonResult EliminarRol(int id)
         {
@@ -222,6 +238,7 @@ namespace CapaPresentacionAdmin.Controllers
 
         #region PERMISOS
         //PERMISOS
+        [ValidarSesion(Roles = "ADMINISTRADOR")]
         public ActionResult Permisos()
         {
             //validar que id_user_activo no sea null osea que el usuario haya iniciado sesion para poder entrar aqui
@@ -242,6 +259,7 @@ namespace CapaPresentacionAdmin.Controllers
 
             return View();
         }
+        [ValidarSesion(Roles = "ADMINISTRADOR")]
         [HttpGet]
         public JsonResult ListarPermisos()
         {
@@ -250,6 +268,7 @@ namespace CapaPresentacionAdmin.Controllers
             return Json(new { data = olista }, JsonRequestBehavior.AllowGet);
         }
 
+        [ValidarSesion(Roles = "ADMINISTRADOR")]
         [HttpPost]
         public JsonResult GuardarPermiso(Permisos objeto)
         {
@@ -268,6 +287,7 @@ namespace CapaPresentacionAdmin.Controllers
             return Json(new { resultado = resultado, mensaje = Mensaje }, JsonRequestBehavior.AllowGet);
         }
 
+        [ValidarSesion(Roles = "ADMINISTRADOR")]
         [HttpPost]
         public JsonResult EliminarPermiso(int id)
         {
@@ -283,6 +303,7 @@ namespace CapaPresentacionAdmin.Controllers
 
 
 
+        [ValidarSesion(Roles = "ADMINISTRADOR")]
         public ActionResult RolesPorPermisos()
         {
             if (Session["Usuario"] == null)
@@ -301,6 +322,7 @@ namespace CapaPresentacionAdmin.Controllers
             return View(); 
         }
 
+        [ValidarSesion(Roles = "ADMINISTRADOR")]
         [HttpGet]
         public JsonResult ListarRolesPermisos()
         {
@@ -311,6 +333,7 @@ namespace CapaPresentacionAdmin.Controllers
         }
 
 
+        [ValidarSesion(Roles = "ADMINISTRADOR")]
         [HttpGet]
         public JsonResult ObtenerPermisosPorRol(int idRol)
         {
@@ -338,6 +361,7 @@ namespace CapaPresentacionAdmin.Controllers
         }
 
         // Método AJAX para guardar las asignaciones de permisos a un rol
+        [ValidarSesion(Roles = "ADMINISTRADOR")]
         [HttpPost]
         public JsonResult GuardarPermisosRol(int idRol, List<int> idsPermisos)
         {

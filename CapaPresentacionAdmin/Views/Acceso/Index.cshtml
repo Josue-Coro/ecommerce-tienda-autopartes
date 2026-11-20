@@ -40,6 +40,7 @@
 
 
                                         <form action="@Url.Action("Index", "Acceso")" method="post">
+                                            @Html.AntiForgeryToken()
                                             <div class="form-floating mb-3">
                                                 <input class="form-control" name="correo" type="email" placeholder="Ingrese su correo" required />
                                                 <label for="inputEmail">Correo electrónico</label>

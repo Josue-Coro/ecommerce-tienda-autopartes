@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using System.Net.Mail;
 using System.Net;
 using System.IO;
+using System.Configuration;
 
 namespace CapaNegocio
 {
@@ -38,37 +39,42 @@ namespace CapaNegocio
             return Sb.ToString();
         }
 
-        public static bool EnviarCorreo(string correo, string asunto, string mensaje) 
+        /// <summary>
+        /// Envía un correo HTML. Las credenciales se leen de la configuración (Secretos.config):
+        /// CorreoRemitente, CorreoClave, CorreoServidor y CorreoPuerto. Si no están configuradas, no envía y devuelve false.
+        /// </summary>
+        public static bool EnviarCorreo(string correo, string asunto, string mensaje)
         {
-            bool resultado = false;
+            string remitente = ConfigurationManager.AppSettings["CorreoRemitente"];
+            string clave = ConfigurationManager.AppSettings["CorreoClave"];
+            string servidor = ConfigurationManager.AppSettings["CorreoServidor"] ?? "smtp.gmail.com";
+            int puerto;
+            if (!int.TryParse(ConfigurationManager.AppSettings["CorreoPuerto"], out puerto))
+                puerto = 587;
 
+            if (string.IsNullOrWhiteSpace(remitente) || string.IsNullOrWhiteSpace(clave) || string.IsNullOrWhiteSpace(correo))
+                return false;
 
             try
             {
-                MailMessage mail = new MailMessage();
-                mail.To.Add(correo);
-                mail.From = new MailAddress("autopartes.doshermanos20@gmail.com");
-                mail.Subject = asunto;
-                mail.Body = mensaje;
-                mail.IsBodyHtml = true;
-
-                var smtp = new SmtpClient()
+                using (MailMessage mail = new MailMessage())
+                using (SmtpClient smtp = new SmtpClient(servidor, puerto) { Credentials = new NetworkCredential(remitente, clave), EnableSsl = true })
                 {
-                    Credentials = new NetworkCredential("autopartes.doshermanos20@gmail.com", "pvsvxzhphibhdzjh"),
-                    Host = "smtp.gmail.com",
-                    Port = 587,
-                    EnableSsl = true
-                };
-                smtp.Send(mail);
-                resultado = true;
-
+                    mail.To.Add(correo);
+                    mail.From = new MailAddress(remitente);
+                    mail.Subject = asunto;
+                    mail.Body = mensaje;
+                    mail.IsBodyHtml = true;
+                    smtp.Send(mail);
+                }
+                return true;
             }
-            catch (Exception ex)
+            catch
             {
-                resultado = false;
+                return false;
             }
-            return resultado;
         }
+
         public static string ConvertirBase64(string ruta, out bool conversion)
         {
             string textoBase64 = string.Empty;
