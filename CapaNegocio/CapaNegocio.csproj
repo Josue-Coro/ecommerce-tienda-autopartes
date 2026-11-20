@@ -67,6 +67,8 @@
     <Compile Include="Facturacion\CN_Factura.cs" />
     <Compile Include="Facturacion\CN_Contingencia.cs" />
     <Compile Include="Facturacion\CN_NotaCreditoDebito.cs" />
+    <Compile Include="Contabilidad\CN_Contabilidad.cs" />
+    <Compile Include="Contabilidad\CN_LibrosFiscales.cs" />
     <Compile Include="Facturacion\ArchivoTar.cs" />
     <Compile Include="Facturacion\Siat\ISiatServicio.cs" />
     <Compile Include="Facturacion\Siat\CatalogosSimulados.cs" />

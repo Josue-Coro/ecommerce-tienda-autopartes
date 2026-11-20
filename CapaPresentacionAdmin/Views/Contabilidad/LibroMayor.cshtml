@@ -1,0 +1,70 @@
+@{
+    ViewBag.Title = "Libro mayor";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+@Html.Partial("~/Views/Contabilidad/_Utilidades.cshtml")
+
+<ol class="breadcrumb mb-4 mt-4">
+    <li class="breadcrumb-item"><a href="@Url.Action("Index","Home")">Resumen</a></li>
+    <li class="breadcrumb-item">Contabilidad</li>
+    <li class="breadcrumb-item active">Libro mayor</li>
+</ol>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-5"><label class="form-label" for="cboCuenta">Cuenta</label><select class="form-select" id="cboCuenta"></select></div>
+            <div class="col-md-2"><label class="form-label" for="txtDesde">Desde</label><input type="date" class="form-control" id="txtDesde"></div>
+            <div class="col-md-2"><label class="form-label" for="txtHasta">Hasta</label><input type="date" class="form-control" id="txtHasta"></div>
+            <div class="col-md-3"><button type="button" class="btn btn-primary w-100" id="btnBuscar"><i class="fas fa-search me-1"></i>Ver mayor</button></div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white"><i class="fas fa-book-open me-2"></i><b id="txtCuenta">Seleccione una cuenta</b> <span class="small text-muted" id="txtNaturaleza"></span></div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered" id="tablaMayor">
+                <thead class="table-light"><tr><th style="width:100px">Fecha</th><th style="width:70px">Asiento</th><th>Glosa</th><th class="text-end">Debe</th><th class="text-end">Haber</th><th class="text-end">Saldo</th></tr></thead>
+                <tbody></tbody>
+                <tfoot class="fw-bold"></tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section scripts {
+    <script>
+        function cargar() {
+            if (!$("#cboCuenta").val()) return;
+            $.get(ctUrl("ObtenerLibroMayor"), { idCuenta: $("#cboCuenta").val(), fechaInicio: $("#txtDesde").val(), fechaFin: $("#txtHasta").val() }, function (res) {
+                if (!res.resultado) { Swal.fire("Atención", res.mensaje, "warning"); return; }
+                $("#txtCuenta").text(res.cuenta);
+                $("#txtNaturaleza").text("(naturaleza " + res.naturaleza + ")");
+                var $tb = $("#tablaMayor tbody").empty();
+                $tb.append('<tr class="table-light"><td colspan="5"><i>Saldo anterior</i></td><td class="text-end">' + ctMonto(res.saldo_anterior) + "</td></tr>");
+                $.each(res.movimientos, function (i, m) {
+                    $tb.append("<tr><td>" + m.fecha + "</td><td>" + m.numero + "</td><td>" + ctEscapar(m.glosa) + '</td><td class="text-end">' + (m.debe ? ctMonto(m.debe) : "")
+                        + '</td><td class="text-end">' + (m.haber ? ctMonto(m.haber) : "") + '</td><td class="text-end">' + ctMonto(m.saldo) + "</td></tr>");
+                });
+                $("#tablaMayor tfoot").html('<tr><td colspan="3" class="text-end">Totales</td><td class="text-end">' + ctMonto(res.total_debe) + '</td><td class="text-end">'
+                    + ctMonto(res.total_haber) + '</td><td class="text-end">' + ctMonto(res.saldo_final) + "</td></tr>");
+            });
+        }
+
+        $("#btnBuscar").on("click", cargar);
+        $("#cboCuenta").on("change", cargar);
+
+        $(function () {
+            $("#txtDesde").val(ctPrimerDiaMes());
+            $("#txtHasta").val(ctHoy());
+            $.get(ctUrl("ListarCuentas"), function (res) {
+                $.each(res.data.filter(function (c) { return c.imputable; }), function (i, c) {
+                    $("#cboCuenta").append($("<option>").val(c.id_cuenta).text(c.codigo + " " + c.nombre));
+                });
+                cargar();
+            });
+        });
+    </script>
+}

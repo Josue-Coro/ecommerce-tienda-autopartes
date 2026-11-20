@@ -73,6 +73,7 @@
     <Compile Include="Facturacion\RespuestaSiat.cs" />
     <Compile Include="Facturacion\EventoSignificativo.cs" />
     <Compile Include="Facturacion\NotaCreditoDebito.cs" />
+    <Compile Include="Contabilidad\Contabilidad.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

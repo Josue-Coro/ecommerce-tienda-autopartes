@@ -1,0 +1,21 @@
+@* Funciones comunes de las vistas de contabilidad (se definen sin ejecutar nada: jQuery se carga al final del layout). *@
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+    function ctUrl(accion) { return '@Url.Action("__A__", "Contabilidad")'.replace("__A__", accion); }
+    function ctEscapar(t) { return $("<span>").text(t == null ? "" : t).html(); }
+    function ctMonto(v) { return Number(v || 0).toLocaleString("es-BO", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+    function ctHoy() { return new Date().toISOString().substring(0, 10); }
+    function ctPrimerDiaMes() { var h = new Date(); return new Date(h.getFullYear(), h.getMonth(), 1, 12).toISOString().substring(0, 10); }
+    function ctPost(accion, datos) {
+        return $.ajax({ url: ctUrl(accion), type: "POST", data: JSON.stringify(datos || {}), contentType: "application/json; charset=utf-8" })
+            .fail(function (xhr) { Swal.fire("Error", (xhr.responseJSON && xhr.responseJSON.mensaje) || "Error de comunicación con el servidor.", "error"); });
+    }
+    function ctLlenarMeses($mes, $gestion) {
+        var nombres = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+        var hoy = new Date();
+        $.each(nombres, function (i, n) { $mes.append($("<option>").val(i + 1).text(n)); });
+        for (var g = hoy.getFullYear(); g >= hoy.getFullYear() - 5; g--) $gestion.append($("<option>").val(g).text(g));
+        $mes.val(hoy.getMonth() + 1);
+        $gestion.val(hoy.getFullYear());
+    }
+</script>

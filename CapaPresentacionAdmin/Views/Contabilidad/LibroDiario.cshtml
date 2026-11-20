@@ -1,0 +1,210 @@
+@{
+    ViewBag.Title = "Libro diario";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    bool puedeCerrar = Session["NombreRol"]?.ToString() == "ADMINISTRADOR" || Session["NombreRol"]?.ToString() == "GERENTE";
+}
+@Html.Partial("~/Views/Contabilidad/_Utilidades.cshtml")
+
+<ol class="breadcrumb mb-4 mt-4">
+    <li class="breadcrumb-item"><a href="@Url.Action("Index","Home")">Resumen</a></li>
+    <li class="breadcrumb-item">Contabilidad</li>
+    <li class="breadcrumb-item active">Libro diario</li>
+</ol>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-sm-3"><label class="form-label" for="txtDesde">Desde</label><input type="date" class="form-control" id="txtDesde"></div>
+            <div class="col-sm-3"><label class="form-label" for="txtHasta">Hasta</label><input type="date" class="form-control" id="txtHasta"></div>
+            <div class="col-sm-6 d-flex flex-wrap gap-2">
+                <button type="button" class="btn btn-primary" id="btnBuscar"><i class="fas fa-search me-1"></i>Buscar</button>
+                <button type="button" class="btn btn-success" id="btnContabilizar" title="Genera los asientos de facturas, notas, anulaciones y compras del rango que aún no los tienen">
+                    <i class="fas fa-magic me-1"></i>Contabilizar documentos
+                </button>
+                <button type="button" class="btn btn-outline-dark" onclick="abrirAsiento()"><i class="fas fa-plus me-1"></i>Asiento manual</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-white d-flex justify-content-between">
+        <span><i class="fas fa-book me-2"></i><b>Libro diario</b></span>
+        <span class="small text-muted" id="txtTotales"></span>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered" id="tablaDiario">
+                <thead class="table-light"><tr><th style="width:90px">Fecha</th><th style="width:70px">N°</th><th>Cuenta / glosa</th><th class="text-end" style="width:120px">Debe</th><th class="text-end" style="width:120px">Haber</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white"><i class="fas fa-lock me-2"></i><b>Cierre de meses</b></div>
+    <div class="card-body">
+        <p class="small text-muted">Un mes cerrado no admite asientos nuevos, anulaciones ni cambios en los datos fiscales de sus compras.</p>
+        @if (puedeCerrar)
+        {
+            <div class="row g-2 align-items-end mb-3">
+                <div class="col-sm-3"><select class="form-select" id="cboMes"></select></div>
+                <div class="col-sm-2"><select class="form-select" id="cboGestion"></select></div>
+                <div class="col-sm-7">
+                    <button type="button" class="btn btn-outline-danger" onclick="cambiarCierre(true)"><i class="fas fa-lock me-1"></i>Cerrar mes</button>
+                    <button type="button" class="btn btn-outline-secondary" onclick="cambiarCierre(false)"><i class="fas fa-lock-open me-1"></i>Reabrir</button>
+                </div>
+            </div>
+        }
+        <div id="listaCerrados" class="small"></div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalAsiento" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title"><i class="fas fa-pen me-2"></i>Asiento manual</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-2 mb-3">
+                    <div class="col-md-3"><label class="form-label" for="asFecha">Fecha</label><input type="date" class="form-control" id="asFecha"></div>
+                    <div class="col-md-9"><label class="form-label" for="asGlosa">Glosa</label><input type="text" class="form-control" id="asGlosa" maxlength="500" placeholder="Ej.: Pago de alquiler de noviembre"></div>
+                </div>
+                <table class="table table-sm" id="tablaLineas">
+                    <thead><tr><th>Cuenta</th><th style="width:140px">Debe</th><th style="width:140px">Haber</th><th>Glosa de la línea</th><th style="width:40px"></th></tr></thead>
+                    <tbody></tbody>
+                    <tfoot>
+                        <tr>
+                            <td><button type="button" class="btn btn-outline-secondary btn-sm" onclick="agregarLinea()"><i class="fas fa-plus"></i> Línea</button></td>
+                            <td class="text-end fw-bold" id="asTotalDebe">0,00</td><td class="text-end fw-bold" id="asTotalHaber">0,00</td>
+                            <td colspan="2" id="asDiferencia" class="small"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="guardarAsiento()">Registrar asiento</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section scripts {
+    <script>
+        var opcionesCuentas = "";
+        var etiquetasOrigen = { FACTURA: "Factura", ANULACION_FACTURA: "Anulación de factura", NOTA: "Nota C/D", ANULACION_NOTA: "Anulación de nota", COMPRA: "Compra" };
+
+        function cargar() {
+            $.get(ctUrl("ListarAsientos"), { fechaInicio: $("#txtDesde").val(), fechaFin: $("#txtHasta").val() }, function (res) {
+                var $tb = $("#tablaDiario tbody").empty();
+                if (res.data.length === 0) $tb.append('<tr><td colspan="5" class="text-center text-muted">No hay asientos en el rango. Use "Contabilizar documentos".</td></tr>');
+                $.each(res.data, function (i, a) {
+                    var anulado = a.estado !== "VIGENTE";
+                    var origen = a.origen_tipo ? '<span class="badge bg-info text-dark">' + etiquetasOrigen[a.origen_tipo] + "</span> " : '<span class="badge bg-secondary">Manual</span> ';
+                    $tb.append('<tr class="table-light' + (anulado ? " text-decoration-line-through text-muted" : "") + '"><td>' + a.fecha + "</td><td>" + a.numero + "</td>"
+                        + '<td colspan="3">' + origen + "<b>" + ctEscapar(a.glosa) + "</b>" + (anulado ? ' <span class="badge bg-danger">ANULADO</span>' : "")
+                        + (a.tipo === "MANUAL" && !anulado ? ' <button type="button" class="btn btn-link btn-sm text-danger p-0 ms-2" onclick="anular(' + a.id_asiento + ')">anular</button>' : "")
+                        + "</td></tr>");
+                    $.each(a.detalle, function (j, d) {
+                        $tb.append('<tr class="' + (anulado ? "text-muted" : "") + '"><td></td><td></td><td style="padding-left:' + (d.haber > 0 ? 40 : 12) + 'px">'
+                            + ctEscapar(d.codigo + " " + d.nombre) + (d.glosa ? '<div class="small text-muted">' + ctEscapar(d.glosa) + "</div>" : "") + "</td>"
+                            + '<td class="text-end">' + (d.debe > 0 ? ctMonto(d.debe) : "") + '</td><td class="text-end">' + (d.haber > 0 ? ctMonto(d.haber) : "") + "</td></tr>");
+                    });
+                });
+                $("#txtTotales").text(res.data.length + " asiento(s) · total vigente Bs " + ctMonto(res.total_debe));
+                $("#listaCerrados").html(res.periodos_cerrados.length === 0 ? '<span class="text-muted">No hay meses cerrados.</span>'
+                    : $.map(res.periodos_cerrados, function (p) { return '<span class="badge bg-dark me-1"><i class="fas fa-lock"></i> ' + ("0" + p.mes).slice(-2) + "/" + p.gestion + "</span>"; }).join(""));
+            });
+        }
+
+        $("#btnBuscar").on("click", cargar);
+
+        $("#btnContabilizar").on("click", function () {
+            var $btn = $(this).prop("disabled", true);
+            ctPost("Contabilizar", { fechaInicio: $("#txtDesde").val(), fechaFin: $("#txtHasta").val() }).done(function (res) {
+                Swal.fire({
+                    icon: res.resultado ? "success" : "warning", title: "Contabilización",
+                    html: ctEscapar(res.mensaje) + (res.errores.length ? '<div class="text-start small mt-2">' + $.map(res.errores, ctEscapar).join("<br>") + "</div>" : "")
+                });
+                cargar();
+            }).always(function () { $btn.prop("disabled", false); });
+        });
+
+        function anular(id) {
+            Swal.fire({ icon: "question", title: "¿Anular el asiento manual?", showCancelButton: true, confirmButtonText: "Anular", cancelButtonText: "Cancelar" }).then(function (r) {
+                if (!r.isConfirmed) return;
+                ctPost("AnularAsiento", { idAsiento: id }).done(function (res) {
+                    Swal.fire(res.resultado ? "Listo" : "Atención", res.mensaje, res.resultado ? "success" : "warning");
+                    cargar();
+                });
+            });
+        }
+
+        function cambiarCierre(cerrar) {
+            ctPost("CambiarCierrePeriodo", { gestion: parseInt($("#cboGestion").val()), mes: parseInt($("#cboMes").val()), cerrar: cerrar }).done(function (res) {
+                Swal.fire(res.resultado ? "Listo" : "Atención", res.mensaje, res.resultado ? "success" : "warning");
+                cargar();
+            });
+        }
+
+        // ---------- asiento manual ----------
+        function abrirAsiento() {
+            $("#asFecha").val(ctHoy());
+            $("#asGlosa").val("");
+            $("#tablaLineas tbody").empty();
+            agregarLinea(); agregarLinea();
+            recalcular();
+            $("#modalAsiento").modal("show");
+        }
+
+        function agregarLinea() {
+            $("#tablaLineas tbody").append('<tr><td><select class="form-select form-select-sm as-cuenta"><option value="">-- Cuenta --</option>' + opcionesCuentas + "</select></td>"
+                + '<td><input type="number" min="0" step="0.01" class="form-control form-control-sm text-end as-debe" oninput="recalcular()"></td>'
+                + '<td><input type="number" min="0" step="0.01" class="form-control form-control-sm text-end as-haber" oninput="recalcular()"></td>'
+                + '<td><input type="text" maxlength="300" class="form-control form-control-sm as-glosa"></td>'
+                + '<td><button type="button" class="btn btn-outline-danger btn-sm" onclick="$(this).closest(\'tr\').remove(); recalcular();"><i class="fas fa-times"></i></button></td></tr>');
+        }
+
+        function recalcular() {
+            var debe = 0, haber = 0;
+            $("#tablaLineas tbody tr").each(function () {
+                debe += parseFloat($(this).find(".as-debe").val()) || 0;
+                haber += parseFloat($(this).find(".as-haber").val()) || 0;
+            });
+            debe = Math.round(debe * 100) / 100; haber = Math.round(haber * 100) / 100;
+            $("#asTotalDebe").text(ctMonto(debe));
+            $("#asTotalHaber").text(ctMonto(haber));
+            $("#asDiferencia").html(debe === haber && debe > 0 ? '<span class="text-success"><i class="fas fa-check"></i> Cuadra</span>'
+                : '<span class="text-danger">Diferencia: ' + ctMonto(Math.abs(debe - haber)) + "</span>");
+        }
+
+        function guardarAsiento() {
+            var detalle = [];
+            $("#tablaLineas tbody tr").each(function () {
+                var cuenta = $(this).find(".as-cuenta").val();
+                var debe = parseFloat($(this).find(".as-debe").val()) || 0, haber = parseFloat($(this).find(".as-haber").val()) || 0;
+                if (cuenta || debe || haber) detalle.push({ id_cuenta: parseInt(cuenta || "0"), debe: debe, haber: haber, glosa: $.trim($(this).find(".as-glosa").val()) || null });
+            });
+            ctPost("RegistrarAsiento", { objeto: { fecha: $("#asFecha").val(), glosa: $.trim($("#asGlosa").val()), oDetalle: detalle } }).done(function (res) {
+                if (res.resultado) { $("#modalAsiento").modal("hide"); cargar(); }
+                Swal.fire(res.resultado ? "Asiento registrado" : "Atención", res.mensaje, res.resultado ? "success" : "warning");
+            });
+        }
+
+        $(function () {
+            $("#txtDesde").val(ctPrimerDiaMes());
+            $("#txtHasta").val(ctHoy());
+            if ($("#cboMes").length) ctLlenarMeses($("#cboMes"), $("#cboGestion"));
+            $.get(ctUrl("ListarCuentas"), function (res) {
+                opcionesCuentas = $.map(res.data.filter(function (c) { return c.imputable && c.estado; }), function (c) {
+                    return '<option value="' + c.id_cuenta + '">' + ctEscapar(c.codigo + " " + c.nombre) + "</option>";
+                }).join("");
+            });
+            cargar();
+        });
+    </script>
+}

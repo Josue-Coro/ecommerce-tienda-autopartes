@@ -23,6 +23,7 @@
          ViewContext.RouteData.Values["action"]?.ToString() == "Stock");
 
     var esFacturacion = controlador == "Facturacion";
+    var esContabilidad = controlador == "Contabilidad";
 
     var esReporte = controlador == "Operaciones" &&
         (ViewContext.RouteData.Values["action"]?.ToString() == "ReporteVentas" ||
@@ -36,6 +37,7 @@
     bool puedeVerReportes = nombreRolUsuario == "ADMINISTRADOR" || nombreRolUsuario == "GERENTE"; 
     bool puedeVerFacturacion = puedeVerOperaciones;
     bool puedeConfigurarFacturacion = nombreRolUsuario == "ADMINISTRADOR" || nombreRolUsuario == "GERENTE";
+    bool puedeVerContabilidad = nombreRolUsuario == "ADMINISTRADOR" || nombreRolUsuario == "GERENTE" || nombreRolUsuario == "CONTADOR";
 }
 
 <!DOCTYPE html>
@@ -257,6 +259,39 @@
                                             <i class="fas fa-sliders-h me-2"></i>Configuración
                                         </a>
                                     }
+                                </nav>
+                            </div>
+                        }
+
+                        @* SECCIÓN DE CONTABILIDAD *@
+                        @if (puedeVerContabilidad)
+                        {
+                            <div class="sb-sidenav-menu-heading">CONTABILIDAD</div>
+                            <a class="nav-link @(esContabilidad ? "" : "collapsed")" href="#" data-bs-toggle="collapse" data-bs-target="#collapseContabilidad" aria-expanded="@(esContabilidad.ToString().ToLower())" aria-controls="collapseContabilidad">
+                                <div class="sb-nav-link-icon"><i class="fas fa-calculator"></i></div>
+                                Contabilidad
+                                <div class="sb-sidenav-collapse-arrow"><i class="fas fa-angle-down"></i></div>
+                            </a>
+                            <div class="collapse @(esContabilidad ? "show" : "")" id="collapseContabilidad" aria-labelledby="headingOne" data-bs-parent="#sidenavAccordion">
+                                <nav class="sb-sidenav-menu-nested nav">
+                                    <a class="nav-link @(esContabilidad && ViewContext.RouteData.Values["action"]?.ToString() == "PlanCuentas" ? "active" : "")" href="@Url.Action("PlanCuentas","Contabilidad")">
+                                        <i class="fas fa-sitemap me-2"></i>Plan de cuentas
+                                    </a>
+                                    <a class="nav-link @(esContabilidad && ViewContext.RouteData.Values["action"]?.ToString() == "LibroDiario" ? "active" : "")" href="@Url.Action("LibroDiario","Contabilidad")">
+                                        <i class="fas fa-book me-2"></i>Libro diario
+                                    </a>
+                                    <a class="nav-link @(esContabilidad && ViewContext.RouteData.Values["action"]?.ToString() == "LibroMayor" ? "active" : "")" href="@Url.Action("LibroMayor","Contabilidad")">
+                                        <i class="fas fa-book-open me-2"></i>Libro mayor
+                                    </a>
+                                    <a class="nav-link @(esContabilidad && ViewContext.RouteData.Values["action"]?.ToString() == "EstadosFinancieros" ? "active" : "")" href="@Url.Action("EstadosFinancieros","Contabilidad")">
+                                        <i class="fas fa-balance-scale me-2"></i>Estados financieros
+                                    </a>
+                                    <a class="nav-link @(esContabilidad && ViewContext.RouteData.Values["action"]?.ToString() == "LibrosFiscales" ? "active" : "")" href="@Url.Action("LibrosFiscales","Contabilidad")">
+                                        <i class="fas fa-file-csv me-2"></i>Libros de compras y ventas
+                                    </a>
+                                    <a class="nav-link @(esContabilidad && ViewContext.RouteData.Values["action"]?.ToString() == "Liquidacion" ? "active" : "")" href="@Url.Action("Liquidacion","Contabilidad")">
+                                        <i class="fas fa-calculator me-2"></i>Liquidación IVA / IT
+                                    </a>
                                 </nav>
                             </div>
                         }

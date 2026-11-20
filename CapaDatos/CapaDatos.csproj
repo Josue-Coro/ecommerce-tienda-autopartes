@@ -66,6 +66,7 @@
     <Compile Include="Facturacion\CD_Factura.cs" />
     <Compile Include="Facturacion\CD_Contingencia.cs" />
     <Compile Include="Facturacion\CD_NotaCreditoDebito.cs" />
+    <Compile Include="Contabilidad\CD_Contabilidad.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

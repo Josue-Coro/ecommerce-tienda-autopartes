@@ -1,0 +1,67 @@
+@{
+    ViewBag.Title = "Liquidación de impuestos";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+@Html.Partial("~/Views/Contabilidad/_Utilidades.cshtml")
+
+<ol class="breadcrumb mb-4 mt-4">
+    <li class="breadcrumb-item"><a href="@Url.Action("Index","Home")">Resumen</a></li>
+    <li class="breadcrumb-item">Contabilidad</li>
+    <li class="breadcrumb-item active">Liquidación de impuestos</li>
+</ol>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-sm-3"><label class="form-label" for="cboMes">Mes</label><select class="form-select" id="cboMes"></select></div>
+            <div class="col-sm-2"><label class="form-label" for="cboGestion">Gestión</label><select class="form-select" id="cboGestion"></select></div>
+            <div class="col-sm-3"><button type="button" class="btn btn-primary w-100" id="btnBuscar"><i class="fas fa-calculator me-1"></i>Calcular</button></div>
+            <div class="col-sm-4 small text-muted">Referencial, para preparar los formularios de IVA e IT. No incluye la actualización del saldo a favor por UFV ni la compensación del IT con el IUE.</div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-7 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white"><i class="fas fa-percent me-2"></i><b>Impuesto al Valor Agregado (IVA 13 %)</b> <span class="small text-muted" id="txtPeriodo"></span></div>
+            <div class="card-body"><table class="table table-sm" id="tablaIva"><tbody></tbody></table></div>
+        </div>
+    </div>
+    <div class="col-lg-5 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white"><i class="fas fa-exchange-alt me-2"></i><b>Impuesto a las Transacciones (IT 3 %)</b></div>
+            <div class="card-body"><table class="table table-sm" id="tablaIt"><tbody></tbody></table></div>
+        </div>
+    </div>
+</div>
+
+@section scripts {
+    <script>
+        function fila(t, v, clase) { return '<tr class="' + (clase || "") + '"><td>' + t + '</td><td class="text-end">' + ctMonto(v) + "</td></tr>"; }
+
+        function cargar() {
+            $.get(ctUrl("ObtenerLiquidacion"), { gestion: $("#cboGestion").val(), mes: $("#cboMes").val() }, function (res) {
+                var l = res.data;
+                $("#txtPeriodo").text(res.periodo);
+                $("#tablaIva tbody").html(
+                    fila("Ventas gravadas (base para débito fiscal)", l.ventas_gravadas)
+                    + fila("<b>Débito fiscal</b> (13 %)", l.debito_fiscal, "fw-bold")
+                    + fila("Compras gravadas (base para crédito fiscal)", l.compras_gravadas)
+                    + fila("Crédito fiscal por compras (13 %)", l.credito_fiscal_compras)
+                    + fila("Devoluciones efectuadas (notas crédito-débito)", l.devoluciones)
+                    + fila("Crédito fiscal por devoluciones", l.credito_fiscal_devoluciones)
+                    + fila("<b>Total crédito fiscal</b>", l.credito_fiscal_total, "fw-bold")
+                    + fila("Saldo a favor del contribuyente del periodo anterior", l.saldo_favor_anterior)
+                    + fila("IVA A PAGAR", l.iva_a_pagar, "fw-bold " + (l.iva_a_pagar > 0 ? "table-warning" : "table-success"))
+                    + fila("Saldo a favor para el periodo siguiente", l.saldo_favor_siguiente, "fw-bold"));
+                $("#tablaIt tbody").html(
+                    fila("Ingresos brutos facturados (netos de devoluciones)", l.ingresos_brutos)
+                    + fila("IT A PAGAR (3 %)", l.it_a_pagar, "fw-bold table-warning"));
+            });
+        }
+
+        $("#btnBuscar").on("click", cargar);
+        $(function () { ctLlenarMeses($("#cboMes"), $("#cboGestion")); cargar(); });
+    </script>
+}

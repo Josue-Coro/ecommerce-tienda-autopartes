@@ -1,0 +1,94 @@
+@{
+    ViewBag.Title = "Estados financieros";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+@Html.Partial("~/Views/Contabilidad/_Utilidades.cshtml")
+
+<ol class="breadcrumb mb-4 mt-4">
+    <li class="breadcrumb-item"><a href="@Url.Action("Index","Home")">Resumen</a></li>
+    <li class="breadcrumb-item">Contabilidad</li>
+    <li class="breadcrumb-item active">Estados financieros</li>
+</ol>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-sm-3"><label class="form-label" for="txtDesde">Desde</label><input type="date" class="form-control" id="txtDesde"></div>
+            <div class="col-sm-3"><label class="form-label" for="txtHasta">Hasta</label><input type="date" class="form-control" id="txtHasta"></div>
+            <div class="col-sm-3"><button type="button" class="btn btn-primary w-100" id="btnBuscar"><i class="fas fa-search me-1"></i>Generar</button></div>
+            <div class="col-sm-3"><button type="button" class="btn btn-outline-secondary w-100" onclick="window.print()"><i class="fas fa-print me-1"></i>Imprimir</button></div>
+        </div>
+        <div class="small text-muted mt-2">El balance de comprobación y el estado de resultados usan el rango; el balance general acumula todos los movimientos hasta la fecha "Hasta".</div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white"><i class="fas fa-balance-scale me-2"></i><b>Balance de comprobación de sumas y saldos</b></div>
+            <div class="card-body table-responsive">
+                <table class="table table-sm table-bordered" id="tablaComprobacion">
+                    <thead class="table-light">
+                        <tr><th rowspan="2">Código</th><th rowspan="2">Cuenta</th><th colspan="2" class="text-center">Sumas</th><th colspan="2" class="text-center">Saldos</th></tr>
+                        <tr><th class="text-end">Debe</th><th class="text-end">Haber</th><th class="text-end">Deudor</th><th class="text-end">Acreedor</th></tr>
+                    </thead>
+                    <tbody></tbody>
+                    <tfoot class="fw-bold"></tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-6 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white"><i class="fas fa-chart-line me-2"></i><b>Estado de resultados</b></div>
+            <div class="card-body"><table class="table table-sm" id="tablaResultados"><tbody></tbody></table></div>
+        </div>
+    </div>
+    <div class="col-xl-6 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white"><i class="fas fa-landmark me-2"></i><b>Balance general</b> <span class="small text-muted" id="txtCorte"></span></div>
+            <div class="card-body"><table class="table table-sm" id="tablaBalance"><tbody></tbody></table></div>
+        </div>
+    </div>
+</div>
+
+@section scripts {
+    <script>
+        function filas(lista) {
+            return $.map(lista, function (s) { return '<tr><td class="ps-4">' + ctEscapar(s.codigo + " " + s.nombre) + '</td><td class="text-end">' + ctMonto(s.saldo) + "</td></tr>"; }).join("");
+        }
+        function titulo(t) { return '<tr class="table-light fw-bold"><td colspan="2">' + t + "</td></tr>"; }
+        function total(t, v, clase) { return '<tr class="fw-bold ' + (clase || "") + '"><td>' + t + '</td><td class="text-end">' + ctMonto(v) + "</td></tr>"; }
+
+        function cargar() {
+            $.get(ctUrl("ObtenerEstadosFinancieros"), { fechaInicio: $("#txtDesde").val(), fechaFin: $("#txtHasta").val() }, function (res) {
+                var $c = $("#tablaComprobacion tbody").empty();
+                $.each(res.comprobacion, function (i, s) {
+                    $c.append("<tr><td>" + ctEscapar(s.codigo) + "</td><td>" + ctEscapar(s.nombre) + '</td><td class="text-end">' + ctMonto(s.debe) + '</td><td class="text-end">' + ctMonto(s.haber)
+                        + '</td><td class="text-end">' + (s.saldo_deudor ? ctMonto(s.saldo_deudor) : "") + '</td><td class="text-end">' + (s.saldo_acreedor ? ctMonto(s.saldo_acreedor) : "") + "</td></tr>");
+                });
+                var t = res.totales_comprobacion;
+                var cuadra = t.debe === t.haber && t.deudor === t.acreedor;
+                $("#tablaComprobacion tfoot").html('<tr><td colspan="2" class="text-end">Totales ' + (cuadra ? '<span class="badge bg-success">cuadra</span>' : '<span class="badge bg-danger">no cuadra</span>')
+                    + '</td><td class="text-end">' + ctMonto(t.debe) + '</td><td class="text-end">' + ctMonto(t.haber) + '</td><td class="text-end">' + ctMonto(t.deudor) + '</td><td class="text-end">' + ctMonto(t.acreedor) + "</td></tr>");
+
+                var r = res.resultados;
+                $("#tablaResultados tbody").html(titulo("INGRESOS") + filas(r.ingresos) + total("Total ingresos", r.total_ingresos)
+                    + titulo("EGRESOS") + filas(r.egresos) + total("Total egresos", r.total_egresos)
+                    + total(r.utilidad >= 0 ? "UTILIDAD DEL PERIODO" : "PÉRDIDA DEL PERIODO", r.utilidad, r.utilidad >= 0 ? "table-success" : "table-danger"));
+
+                var b = res.balance;
+                $("#txtCorte").text("al " + b.fecha_corte);
+                $("#tablaBalance tbody").html(titulo("ACTIVO") + filas(b.activos) + total("Total activo", b.total_activo, "table-primary")
+                    + titulo("PASIVO") + filas(b.pasivos) + total("Total pasivo", b.total_pasivo)
+                    + titulo("PATRIMONIO") + filas(b.patrimonio)
+                    + '<tr><td class="ps-4">Resultado acumulado (ingresos − egresos)</td><td class="text-end">' + ctMonto(b.resultado_acumulado) + "</td></tr>"
+                    + total("Total patrimonio", b.total_patrimonio)
+                    + total("Total pasivo + patrimonio", b.total_pasivo + b.total_patrimonio, "table-primary"));
+            });
+        }
+
+        $("#btnBuscar").on("click", cargar);
+        $(function () { $("#txtDesde").val(ctPrimerDiaMes()); $("#txtHasta").val(ctHoy()); cargar(); });
+    </script>
+}
