@@ -242,6 +242,9 @@
                                     <a class="nav-link @(esFacturacion && ViewContext.RouteData.Values["action"]?.ToString() == "Facturas" ? "active" : "")" href="@Url.Action("Facturas","Facturacion")">
                                         <i class="fas fa-file-invoice-dollar me-2"></i>Facturas
                                     </a>
+                                    <a class="nav-link @(esFacturacion && ViewContext.RouteData.Values["action"]?.ToString() == "Notas" ? "active" : "")" href="@Url.Action("Notas","Facturacion")">
+                                        <i class="fas fa-undo-alt me-2"></i>Notas crédito-débito
+                                    </a>
                                     @if (puedeConfigurarFacturacion)
                                     {
                                         <a class="nav-link @(esFacturacion && ViewContext.RouteData.Values["action"]?.ToString() == "Homologacion" ? "active" : "")" href="@Url.Action("Homologacion","Facturacion")">

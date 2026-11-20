@@ -181,6 +181,11 @@ namespace CapaNegocio.Facturacion.Siat
         public const int PaqueteExcedeLimite = 1020;
         public const int FacturaFueraDelEvento = 1021;
         public const int PaqueteNoExiste = 1022;
+        public const int NotaSinDetalle = 1023;
+        public const int MontoDevueltoIncorrecto = 1024;
+        public const int CreditoDebitoIncorrecto = 1025;
+        public const int DevueltoSuperaOriginal = 1026;
+        public const int NotaSoloEnLinea = 1027;
 
         public static readonly Dictionary<int, string> Todos = new Dictionary<int, string>
         {
@@ -215,7 +220,12 @@ namespace CapaNegocio.Facturacion.Siat
             { CantidadNoCoincide, "LA CANTIDAD DE FACTURAS NO COINCIDE CON EL CONTENIDO DEL PAQUETE" },
             { PaqueteExcedeLimite, "EL PAQUETE EXCEDE EL MÁXIMO DE 500 FACTURAS" },
             { FacturaFueraDelEvento, "LA FACTURA NO CORRESPONDE AL EVENTO SIGNIFICATIVO (CUFD O FECHA FUERA DEL PERIODO)" },
-            { PaqueteNoExiste, "EL CÓDIGO DE RECEPCIÓN DEL PAQUETE NO EXISTE" }
+            { PaqueteNoExiste, "EL CÓDIGO DE RECEPCIÓN DEL PAQUETE NO EXISTE" },
+            { NotaSinDetalle, "LA NOTA DEBE INCLUIR DETALLE ORIGINAL (1) Y DETALLE DEVUELTO (2)" },
+            { MontoDevueltoIncorrecto, "EL MONTO TOTAL DEVUELTO NO COINCIDE CON LA SUMA DEL DETALLE DEVUELTO" },
+            { CreditoDebitoIncorrecto, "EL MONTO EFECTIVO CRÉDITO-DÉBITO DEBE SER EL 13% DEL MONTO DEVUELTO" },
+            { DevueltoSuperaOriginal, "EL MONTO DEVUELTO SUPERA EL MONTO DE LA FACTURA ORIGINAL" },
+            { NotaSoloEnLinea, "LOS DOCUMENTOS DE AJUSTE SOLO SE RECIBEN EN LÍNEA (CÓDIGO DE EMISIÓN 1)" }
         };
 
         public static MensajeSiat Crear(int codigo, string detalle = null)

@@ -334,6 +334,88 @@ IF OBJECT_ID('FACTURACION.PAQUETE', 'U') IS NULL
     );
 GO
 
+/* -------------------------------------------------------------------------------------
+   9. NOTAS DE CRÉDITO-DÉBITO (documento sector 24, documento de ajuste)
+   ------------------------------------------------------------------------------------- */
+IF COL_LENGTH('FACTURACION.NUMERACION', 'ultimo_numero_nota') IS NULL
+    ALTER TABLE FACTURACION.NUMERACION ADD ultimo_numero_nota BIGINT NOT NULL CONSTRAINT NUMERACION_DF_NOTA DEFAULT (0);
+GO
+
+IF OBJECT_ID('FACTURACION.NOTA_CREDITO_DEBITO', 'U') IS NULL
+    CREATE TABLE FACTURACION.NOTA_CREDITO_DEBITO (
+        id_nota                       INT IDENTITY(1,1) NOT NULL CONSTRAINT NOTA_PK PRIMARY KEY,
+        FACTURA_id_factura            INT           NOT NULL,
+        TIENDA_id_tienda              INT           NOT NULL,
+        numero_nota                   BIGINT        NOT NULL,
+        cuf                           VARCHAR(100)  NOT NULL,
+        cufd                          VARCHAR(100)  NOT NULL,
+        fecha_emision                 DATETIME2(3)  NOT NULL,
+        codigo_sucursal               INT           NOT NULL,
+        codigo_punto_venta            INT           NOT NULL,
+        direccion                     VARCHAR(500)  NOT NULL,
+        municipio                     VARCHAR(25)   NOT NULL,
+        telefono                      VARCHAR(25)   NULL,
+        monto_total_original          DECIMAL(17,2) NOT NULL,
+        monto_total_devuelto          DECIMAL(17,2) NOT NULL,
+        monto_efectivo_credito_debito DECIMAL(17,2) NOT NULL,   -- 13 % del monto devuelto
+        codigo_excepcion              TINYINT       NOT NULL CONSTRAINT NOTA_DF_EXCEPCION DEFAULT (0),
+        leyenda                       VARCHAR(200)  NOT NULL,
+        usuario                       VARCHAR(100)  NOT NULL,
+        motivo                        VARCHAR(500)  NOT NULL,   -- motivo interno de la devolución
+        reingreso_stock               BIT           NOT NULL,
+        archivo_xml                   NVARCHAR(MAX) NOT NULL,
+        hash_archivo                  VARCHAR(64)   NOT NULL,
+        codigo_recepcion              VARCHAR(100)  NULL,
+        estado                        VARCHAR(20)   NOT NULL,   -- VALIDADA, OBSERVADA, ANULADA
+        codigo_estado                 INT           NOT NULL,
+        mensajes                      VARCHAR(MAX)  NULL,
+        fecha_anulacion               DATETIME      NULL,
+        codigo_motivo_anulacion       INT           NULL,
+        fecha_registro                DATETIME      NOT NULL CONSTRAINT NOTA_DF_REGISTRO DEFAULT (GETDATE()),
+        CONSTRAINT NOTA_FACTURA_FK  FOREIGN KEY (FACTURA_id_factura) REFERENCES FACTURACION.FACTURA (id_factura),
+        CONSTRAINT NOTA_SUCURSAL_FK FOREIGN KEY (TIENDA_id_tienda)   REFERENCES FACTURACION.SUCURSAL (TIENDA_id_tienda),
+        CONSTRAINT NOTA_UQ_CUF UNIQUE (cuf),
+        CONSTRAINT NOTA_UQ_NUMERO UNIQUE (TIENDA_id_tienda, numero_nota)
+    );
+GO
+
+IF OBJECT_ID('FACTURACION.NOTA_DETALLE', 'U') IS NULL
+    CREATE TABLE FACTURACION.NOTA_DETALLE (
+        id_nota_detalle              INT IDENTITY(1,1) NOT NULL CONSTRAINT NOTA_DETALLE_PK PRIMARY KEY,
+        NOTA_id_nota                 INT           NOT NULL,
+        FACTURA_DETALLE_id           INT           NOT NULL,
+        codigo_detalle_transaccion   TINYINT       NOT NULL,   -- 1 original, 2 devuelto
+        actividad_economica          VARCHAR(10)   NOT NULL,
+        codigo_producto_sin          INT           NOT NULL,
+        codigo_producto              VARCHAR(50)   NOT NULL,
+        descripcion                  VARCHAR(500)  NOT NULL,
+        cantidad                     DECIMAL(17,2) NOT NULL,
+        unidad_medida                INT           NOT NULL,
+        precio_unitario              DECIMAL(17,2) NOT NULL,
+        monto_descuento              DECIMAL(17,2) NOT NULL,
+        sub_total                    DECIMAL(17,2) NOT NULL,
+        CONSTRAINT NOTA_DETALLE_NOTA_FK FOREIGN KEY (NOTA_id_nota) REFERENCES FACTURACION.NOTA_CREDITO_DEBITO (id_nota),
+        CONSTRAINT NOTA_DETALLE_FD_FK   FOREIGN KEY (FACTURA_DETALLE_id) REFERENCES FACTURACION.FACTURA_DETALLE (id_factura_detalle)
+    );
+GO
+
+IF TYPE_ID('FACTURACION.DetalleNotaTipo') IS NULL
+    CREATE TYPE FACTURACION.DetalleNotaTipo AS TABLE (
+        factura_detalle_id          INT           NOT NULL,
+        codigo_detalle_transaccion  TINYINT       NOT NULL,
+        actividad_economica         VARCHAR(10)   NOT NULL,
+        codigo_producto_sin         INT           NOT NULL,
+        codigo_producto             VARCHAR(50)   NOT NULL,
+        descripcion                 VARCHAR(500)  NOT NULL,
+        cantidad                    DECIMAL(17,2) NOT NULL,
+        unidad_medida               INT           NOT NULL,
+        precio_unitario             DECIMAL(17,2) NOT NULL,
+        monto_descuento             DECIMAL(17,2) NOT NULL,
+        sub_total                   DECIMAL(17,2) NOT NULL,
+        id_producto                 INT           NULL      -- para reingresar stock
+    );
+GO
+
 /* =====================================================================================
    PROCEDIMIENTOS ALMACENADOS
    ===================================================================================== */
@@ -1009,6 +1091,215 @@ BEGIN
     UPDATE FACTURACION.FACTURA
     SET estado = @Estado, codigo_estado = @CodigoEstado, codigo_recepcion = @CodigoRecepcion, mensajes = @Mensajes
     WHERE id_factura = @IdFactura AND estado = 'PENDIENTE';
+END
+GO
+
+-- ---------- Notas de crédito-débito ----------
+CREATE OR ALTER PROCEDURE FACTURACION.ObtenerFacturaParaNota
+    @IdFactura  INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    -- Detalle de la factura con lo ya devuelto en notas vigentes (no anuladas).
+    SELECT D.id_factura_detalle, D.actividad_economica, D.codigo_producto_sin, D.codigo_producto, D.descripcion,
+           D.cantidad, D.unidad_medida, D.precio_unitario, D.monto_descuento, D.sub_total,
+           ISNULL((SELECT SUM(ND.cantidad)
+                   FROM FACTURACION.NOTA_DETALLE ND
+                   INNER JOIN FACTURACION.NOTA_CREDITO_DEBITO N ON N.id_nota = ND.NOTA_id_nota
+                   WHERE ND.FACTURA_DETALLE_id = D.id_factura_detalle AND ND.codigo_detalle_transaccion = 2
+                     AND N.estado = 'VALIDADA'), 0) AS cantidad_devuelta
+    FROM FACTURACION.FACTURA_DETALLE D
+    WHERE D.FACTURA_id_factura = @IdFactura
+    ORDER BY D.id_factura_detalle;
+END
+GO
+
+CREATE OR ALTER PROCEDURE FACTURACION.ObtenerSiguienteNumeroNota
+    @IdTienda  INT,
+    @Numero    BIGINT OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE FACTURACION.NUMERACION WITH (UPDLOCK, ROWLOCK)
+    SET @Numero = ultimo_numero_nota = ultimo_numero_nota + 1
+    WHERE TIENDA_id_tienda = @IdTienda;
+
+    IF @@ROWCOUNT = 0
+    BEGIN
+        INSERT INTO FACTURACION.NUMERACION (TIENDA_id_tienda, ultimo_numero, ultimo_numero_nota) VALUES (@IdTienda, 0, 1);
+        SET @Numero = 1;
+    END
+END
+GO
+
+CREATE OR ALTER PROCEDURE FACTURACION.RegistrarNota
+    @IdFactura                  INT,
+    @IdTienda                   INT,
+    @NumeroNota                 BIGINT,
+    @Cuf                        VARCHAR(100),
+    @Cufd                       VARCHAR(100),
+    @FechaEmision               DATETIME2(3),
+    @CodigoSucursal             INT,
+    @CodigoPuntoVenta           INT,
+    @Direccion                  VARCHAR(500),
+    @Municipio                  VARCHAR(25),
+    @Telefono                   VARCHAR(25),
+    @MontoTotalOriginal         DECIMAL(17,2),
+    @MontoTotalDevuelto         DECIMAL(17,2),
+    @MontoEfectivoCreditoDebito DECIMAL(17,2),
+    @CodigoExcepcion            TINYINT,
+    @Leyenda                    VARCHAR(200),
+    @Usuario                    VARCHAR(100),
+    @Motivo                     VARCHAR(500),
+    @ReingresoStock             BIT,
+    @ArchivoXml                 NVARCHAR(MAX),
+    @HashArchivo                VARCHAR(64),
+    @CodigoRecepcion            VARCHAR(100),
+    @Estado                     VARCHAR(20),
+    @CodigoEstado               INT,
+    @Mensajes                   VARCHAR(MAX),
+    @Detalle                    FACTURACION.DetalleNotaTipo READONLY,
+    @Mensaje                    VARCHAR(500) OUTPUT,
+    @Resultado                  INT OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET @Resultado = 0;
+
+    BEGIN TRANSACTION;
+    BEGIN TRY
+        -- Control de concurrencia: lo devuelto (incluida esta nota) no puede superar lo facturado.
+        IF @Estado = 'VALIDADA' AND EXISTS (
+            SELECT 1
+            FROM @Detalle T
+            INNER JOIN FACTURACION.FACTURA_DETALLE D ON D.id_factura_detalle = T.factura_detalle_id
+            WHERE T.codigo_detalle_transaccion = 2
+              AND T.cantidad + ISNULL((SELECT SUM(ND.cantidad)
+                                       FROM FACTURACION.NOTA_DETALLE ND WITH (UPDLOCK)
+                                       INNER JOIN FACTURACION.NOTA_CREDITO_DEBITO N ON N.id_nota = ND.NOTA_id_nota
+                                       WHERE ND.FACTURA_DETALLE_id = D.id_factura_detalle
+                                         AND ND.codigo_detalle_transaccion = 2 AND N.estado = 'VALIDADA'), 0) > D.cantidad)
+        BEGIN
+            ROLLBACK TRANSACTION;
+            SET @Mensaje = 'La cantidad devuelta supera la cantidad facturada (otra nota se registró al mismo tiempo).';
+            RETURN;
+        END
+
+        INSERT INTO FACTURACION.NOTA_CREDITO_DEBITO (
+            FACTURA_id_factura, TIENDA_id_tienda, numero_nota, cuf, cufd, fecha_emision, codigo_sucursal, codigo_punto_venta,
+            direccion, municipio, telefono, monto_total_original, monto_total_devuelto, monto_efectivo_credito_debito,
+            codigo_excepcion, leyenda, usuario, motivo, reingreso_stock, archivo_xml, hash_archivo, codigo_recepcion,
+            estado, codigo_estado, mensajes)
+        VALUES (
+            @IdFactura, @IdTienda, @NumeroNota, @Cuf, @Cufd, @FechaEmision, @CodigoSucursal, @CodigoPuntoVenta,
+            @Direccion, @Municipio, @Telefono, @MontoTotalOriginal, @MontoTotalDevuelto, @MontoEfectivoCreditoDebito,
+            @CodigoExcepcion, @Leyenda, @Usuario, @Motivo, @ReingresoStock, @ArchivoXml, @HashArchivo, @CodigoRecepcion,
+            @Estado, @CodigoEstado, @Mensajes);
+
+        DECLARE @IdNota INT = SCOPE_IDENTITY();
+
+        INSERT INTO FACTURACION.NOTA_DETALLE (NOTA_id_nota, FACTURA_DETALLE_id, codigo_detalle_transaccion, actividad_economica,
+                                              codigo_producto_sin, codigo_producto, descripcion, cantidad, unidad_medida,
+                                              precio_unitario, monto_descuento, sub_total)
+        SELECT @IdNota, factura_detalle_id, codigo_detalle_transaccion, actividad_economica, codigo_producto_sin,
+               codigo_producto, descripcion, cantidad, unidad_medida, precio_unitario, monto_descuento, sub_total
+        FROM @Detalle;
+
+        -- Reingreso al inventario de los productos devueltos (solo si el SIN validó la nota).
+        IF @ReingresoStock = 1 AND @Estado = 'VALIDADA'
+            UPDATE S
+            SET S.cantidad = S.cantidad + CAST(T.cantidad AS INT), S.fecha_actualizacion = GETDATE()
+            FROM INVENTARIO.STOCK S
+            INNER JOIN @Detalle T ON T.id_producto = S.PRODUCTO_id_producto
+            WHERE T.codigo_detalle_transaccion = 2 AND T.id_producto IS NOT NULL AND S.TIENDA_id_tienda = @IdTienda;
+
+        COMMIT TRANSACTION;
+        SET @Resultado = @IdNota;
+        SET @Mensaje = 'Nota registrada correctamente.';
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+        SET @Resultado = 0;
+        SET @Mensaje = 'Error al registrar la nota: ' + ERROR_MESSAGE();
+    END CATCH
+END
+GO
+
+CREATE OR ALTER PROCEDURE FACTURACION.ListarNotas
+    @FechaInicio  DATE = NULL,
+    @FechaFin     DATE = NULL,
+    @IdFactura    INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT N.id_nota, N.FACTURA_id_factura AS id_factura, F.numero_factura, N.numero_nota, N.cuf, N.fecha_emision,
+           F.nombre_razon_social, F.numero_documento, N.monto_total_original, N.monto_total_devuelto,
+           N.monto_efectivo_credito_debito, N.motivo, N.reingreso_stock, N.estado, N.codigo_estado, N.mensajes,
+           N.fecha_anulacion, MA.descripcion AS motivo_anulacion
+    FROM FACTURACION.NOTA_CREDITO_DEBITO N
+    INNER JOIN FACTURACION.FACTURA F ON F.id_factura = N.FACTURA_id_factura
+    LEFT JOIN FACTURACION.CATALOGO MA ON MA.tipo = 'MOTIVO_ANULACION' AND MA.codigo = CAST(N.codigo_motivo_anulacion AS VARCHAR(20))
+    WHERE (@FechaInicio IS NULL OR CAST(N.fecha_emision AS DATE) >= @FechaInicio)
+      AND (@FechaFin IS NULL OR CAST(N.fecha_emision AS DATE) <= @FechaFin)
+      AND (@IdFactura IS NULL OR N.FACTURA_id_factura = @IdFactura)
+    ORDER BY N.id_nota DESC;
+END
+GO
+
+CREATE OR ALTER PROCEDURE FACTURACION.ObtenerNota
+    @IdNota  INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT N.*, MA.descripcion AS motivo_anulacion_descripcion
+    FROM FACTURACION.NOTA_CREDITO_DEBITO N
+    LEFT JOIN FACTURACION.CATALOGO MA ON MA.tipo = 'MOTIVO_ANULACION' AND MA.codigo = CAST(N.codigo_motivo_anulacion AS VARCHAR(20))
+    WHERE N.id_nota = @IdNota;
+
+    SELECT D.*, U.descripcion AS descripcion_unidad_medida
+    FROM FACTURACION.NOTA_DETALLE D
+    LEFT JOIN FACTURACION.CATALOGO U ON U.tipo = 'UNIDAD_MEDIDA' AND U.codigo = CAST(D.unidad_medida AS VARCHAR(20))
+    WHERE D.NOTA_id_nota = @IdNota
+    ORDER BY D.codigo_detalle_transaccion, D.id_nota_detalle;
+END
+GO
+
+CREATE OR ALTER PROCEDURE FACTURACION.RegistrarAnulacionNota
+    @IdNota        INT,
+    @CodigoMotivo  INT,
+    @CodigoEstado  INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRANSACTION;
+        UPDATE FACTURACION.NOTA_CREDITO_DEBITO
+        SET estado = 'ANULADA', codigo_estado = @CodigoEstado, codigo_motivo_anulacion = @CodigoMotivo, fecha_anulacion = GETDATE()
+        WHERE id_nota = @IdNota AND estado = 'VALIDADA';
+
+        DECLARE @Filas INT = @@ROWCOUNT;
+
+        -- Si la devolución había reingresado stock, se revierte.
+        IF @Filas = 1
+            UPDATE S
+            SET S.cantidad = S.cantidad - CAST(D.cantidad AS INT), S.fecha_actualizacion = GETDATE()
+            FROM INVENTARIO.STOCK S
+            INNER JOIN FACTURACION.NOTA_CREDITO_DEBITO N ON N.id_nota = @IdNota AND N.reingreso_stock = 1
+            INNER JOIN FACTURACION.NOTA_DETALLE D ON D.NOTA_id_nota = N.id_nota AND D.codigo_detalle_transaccion = 2
+            WHERE S.TIENDA_id_tienda = N.TIENDA_id_tienda
+              AND D.codigo_producto LIKE 'P-%'
+              AND S.PRODUCTO_id_producto = TRY_CAST(SUBSTRING(D.codigo_producto, 3, 20) AS INT);
+    COMMIT TRANSACTION;
+
+    SELECT @Filas AS filas_afectadas;
+END
+GO
+
+CREATE OR ALTER PROCEDURE FACTURACION.ContarNotasVigentes
+    @IdFactura  INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT COUNT(*) FROM FACTURACION.NOTA_CREDITO_DEBITO WHERE FACTURA_id_factura = @IdFactura AND estado = 'VALIDADA';
 END
 GO
 

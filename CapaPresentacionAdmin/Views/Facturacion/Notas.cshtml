@@ -1,0 +1,150 @@
+@{
+    ViewBag.Title = "Notas crédito-débito";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    bool puedeAnular = Session["NombreRol"]?.ToString() == "ADMINISTRADOR" || Session["NombreRol"]?.ToString() == "GERENTE";
+}
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<ol class="breadcrumb mb-4 mt-4">
+    <li class="breadcrumb-item"><a href="@Url.Action("Index","Home")">Resumen</a></li>
+    <li class="breadcrumb-item">Facturación</li>
+    <li class="breadcrumb-item active">Notas crédito-débito</li>
+</ol>
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white"><i class="fas fa-undo-alt me-2"></i><b>Notas crédito-débito</b></div>
+    <div class="card-body">
+        <p class="small text-muted">
+            Las notas se emiten desde <a href="@Url.Action("Facturas", "Facturacion")">Facturación &gt; Facturas</a>, con el botón
+            <i class="fas fa-undo-alt"></i> de una factura validada.
+        </p>
+        <div class="row g-2 align-items-end mb-3">
+            <div class="col-sm-4">
+                <label class="form-label" for="txtFechaInicio">Desde</label>
+                <input type="date" class="form-control" id="txtFechaInicio">
+            </div>
+            <div class="col-sm-4">
+                <label class="form-label" for="txtFechaFin">Hasta</label>
+                <input type="date" class="form-control" id="txtFechaFin">
+            </div>
+            <div class="col-sm-4">
+                <button type="button" class="btn btn-primary w-100" id="btnBuscar"><i class="fas fa-search me-1"></i>Buscar</button>
+            </div>
+        </div>
+        <table id="tablaNotas" class="display cell-border" style="width:100%">
+            <thead>
+                <tr>
+                    <th>N° nota</th>
+                    <th>Fecha</th>
+                    <th>Factura</th>
+                    <th>Cliente</th>
+                    <th>Devuelto Bs</th>
+                    <th>Crédito fiscal Bs</th>
+                    <th>Estado</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal anulación -->
+<div class="modal fade" id="modalAnularNota" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fas fa-ban me-2"></i>Anular nota <span id="anTitulo"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="anIdNota" value="0" />
+                <p class="small text-muted">Límite para anular: <b id="anLimite"></b>. Si la devolución reingresó productos al inventario, el reingreso se revierte.</p>
+                <label class="form-label" for="anMotivo">Motivo</label>
+                <select class="form-select" id="anMotivo"></select>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="btnConfirmarAnulacion">Anular nota</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section scripts {
+    <script>
+        var puedeAnular = @(puedeAnular ? "true" : "false");
+        var tablaNotas;
+        var coloresEstado = { VALIDADA: "bg-success", OBSERVADA: "bg-warning text-dark", ANULADA: "bg-danger" };
+        function escapar(t) { return $("<span>").text(t == null ? "" : t).html(); }
+
+        $(function () {
+            var hoy = new Date();
+            $("#txtFechaInicio").val(new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().substring(0, 10));
+            $("#txtFechaFin").val(hoy.toISOString().substring(0, 10));
+
+            tablaNotas = $("#tablaNotas").DataTable({
+                responsive: true,
+                ordering: false,
+                ajax: {
+                    url: '@Url.Action("ListarNotas", "Facturacion")', type: "GET",
+                    data: function (d) { return $.extend(d, { fechaInicio: $("#txtFechaInicio").val(), fechaFin: $("#txtFechaFin").val() }); }
+                },
+                columns: [
+                    { data: "numero_nota" },
+                    { data: "fecha_emision" },
+                    { data: "numero_factura", render: function (v) { return "N° " + v; } },
+                    { data: "cliente", render: function (v, t, r) { return escapar(v) + '<div class="small text-muted">' + escapar(r.motivo) + "</div>"; } },
+                    { data: "monto_total_devuelto", className: "text-end", render: function (v) { return Number(v).toFixed(2); } },
+                    { data: "monto_efectivo_credito_debito", className: "text-end", render: function (v) { return Number(v).toFixed(2); } },
+                    {
+                        data: "estado", render: function (v, t, r) {
+                            return '<span class="badge ' + (coloresEstado[v] || "bg-secondary") + '">' + v + "</span>"
+                                + (r.reingreso_stock ? ' <span class="badge bg-light text-dark" title="Reingresó al inventario"><i class="fas fa-boxes"></i></span>' : "")
+                                + (v === "ANULADA" && r.motivo_anulacion ? '<div class="small text-muted">' + escapar(r.motivo_anulacion) + "</div>" : "")
+                                + (v === "OBSERVADA" && r.mensajes ? '<div class="small">' + escapar(r.mensajes) + "</div>" : "");
+                        }
+                    },
+                    {
+                        data: null, orderable: false, width: "130px", render: function (d, t, r) {
+                            var html = '<div class="btn-group btn-group-sm">'
+                                + '<a class="btn btn-outline-primary" target="_blank" title="Imprimir" href="@Url.Action("RepresentacionNota", "Facturacion")?id=' + r.id_nota + '"><i class="fas fa-print"></i></a>'
+                                + '<a class="btn btn-outline-secondary" title="Descargar XML" href="@Url.Action("DescargarXmlNota", "Facturacion")?id=' + r.id_nota + '"><i class="fas fa-file-code"></i></a>';
+                            if (puedeAnular && r.anulable) html += '<button type="button" class="btn btn-outline-danger btn-anular" title="Anular"><i class="fas fa-ban"></i></button>';
+                            return html + "</div>";
+                        }
+                    }
+                ]
+            });
+
+            $.get('@Url.Action("ListarCatalogo", "Facturacion")', { tipo: "MOTIVO_ANULACION" }, function (res) {
+                $.each(res.data, function (i, c) { $("#anMotivo").append($("<option>").val(c.codigo).text(c.descripcion)); });
+            });
+        });
+
+        $("#btnBuscar").on("click", function () { tablaNotas.ajax.reload(); });
+
+        $("#tablaNotas tbody").on("click", ".btn-anular", function () {
+            var $tr = $(this).closest("tr"); if ($tr.hasClass("child")) $tr = $tr.prev();
+            var d = tablaNotas.row($tr).data();
+            $("#anIdNota").val(d.id_nota);
+            $("#anTitulo").text("N° " + d.numero_nota);
+            $("#anLimite").text(d.fecha_limite_anulacion);
+            $("#modalAnularNota").modal("show");
+        });
+
+        $("#btnConfirmarAnulacion").on("click", function () {
+            var $btn = $(this).prop("disabled", true);
+            $.ajax({
+                url: '@Url.Action("AnularNota", "Facturacion")', type: "POST", contentType: "application/json; charset=utf-8",
+                data: JSON.stringify({ idNota: parseInt($("#anIdNota").val()), codigoMotivo: parseInt($("#anMotivo").val()) })
+            }).done(function (res) {
+                if (res.resultado) { $("#modalAnularNota").modal("hide"); tablaNotas.ajax.reload(); }
+                Swal.fire(res.resultado ? "Nota anulada" : "No se pudo anular", res.mensaje, res.resultado ? "success" : "error");
+            }).fail(function (xhr) {
+                Swal.fire("Error", (xhr.responseJSON && xhr.responseJSON.mensaje) || "Error de comunicación con el servidor.", "error");
+            }).always(function () { $btn.prop("disabled", false); });
+        });
+    </script>
+}

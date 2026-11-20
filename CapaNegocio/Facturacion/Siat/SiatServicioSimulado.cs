@@ -316,6 +316,91 @@ namespace CapaNegocio.Facturacion.Siat
             return r;
         }
 
+        // ------------------------------------------------------------------ documentos de ajuste
+
+        public RespuestaRecepcion RecepcionDocumentoAjuste(SolicitudRecepcionDocumentoAjuste s)
+        {
+            Conectar();
+
+            if (s.codigo_emision != 1)
+                return Observada(MensajesSimulados.Crear(MensajesSimulados.NotaSoloEnLinea));
+            if (s.archivo == null || s.archivo.Length == 0 || !string.Equals(AlgoritmosSiat.Sha256(s.archivo), s.hash_archivo, StringComparison.OrdinalIgnoreCase))
+                return Observada(MensajesSimulados.Crear(MensajesSimulados.HashNoCoincide));
+
+            string xml;
+            try { xml = AlgoritmosSiat.DescomprimirGzip(s.archivo); }
+            catch (Exception ex) { return Observada(MensajesSimulados.Crear(MensajesSimulados.XmlNoCumpleXsd, ex.Message)); }
+
+            List<string> erroresXsd = GeneradorXmlFactura.Validar(xml);
+            if (erroresXsd.Count > 0)
+                return Observada(erroresXsd.Take(5).Select(e => MensajesSimulados.Crear(MensajesSimulados.XmlNoCumpleXsd, e)).ToArray());
+
+            XElement raiz = XDocument.Parse(xml).Root;
+            XElement cab = raiz.Element("cabecera");
+            List<MensajeSiat> errores = new List<MensajeSiat>();
+
+            long nitEmisor = long.Parse(Valor(cab, "nitEmisor"), CultureInfo.InvariantCulture);
+            if (nitEmisor != s.nit)
+                errores.Add(MensajesSimulados.Crear(MensajesSimulados.NitEmisorNoCoincide));
+            if (Valor(cab, "cufd") != s.cufd)
+                errores.Add(MensajesSimulados.Crear(MensajesSimulados.CufdNoCoincide));
+
+            // CUF de la nota: tipo de documento 3 (ajuste), sector 24 y número de nota.
+            DateTime fechaEmision = DateTime.Parse(Valor(cab, "fechaEmision"), CultureInfo.InvariantCulture);
+            string pv = Valor(cab, "codigoPuntoVenta");
+            string cadena = AlgoritmosSiat.ArmarCadenaCuf(nitEmisor, fechaEmision,
+                int.Parse(Valor(cab, "codigoSucursal"), CultureInfo.InvariantCulture), s.codigo_modalidad, 1, s.tipo_factura_documento,
+                int.Parse(Valor(cab, "codigoDocumentoSector"), CultureInfo.InvariantCulture),
+                long.Parse(Valor(cab, "numeroNotaCreditoDebito"), CultureInfo.InvariantCulture),
+                string.IsNullOrEmpty(pv) ? 0 : int.Parse(pv, CultureInfo.InvariantCulture));
+            if (s.tipo_factura_documento != 3 || !CufCorresponde(Valor(cab, "cuf"), cadena))
+                errores.Add(MensajesSimulados.Crear(MensajesSimulados.CufInvalido));
+            if (fechaEmision > DateTime.Now.AddMinutes(5) || fechaEmision < DateTime.Now.AddHours(-24))
+                errores.Add(MensajesSimulados.Crear(MensajesSimulados.FechaFueraDeRango));
+
+            HashSet<string> productos = new HashSet<string>(CatalogosSimulados.Obtener(TipoCatalogoSin.ProductoServicio).Select(c => c.codigo));
+            decimal devuelto = 0m;
+            int originales = 0, devueltos = 0, linea = 0;
+            foreach (XElement d in raiz.Elements("detalle"))
+            {
+                linea++;
+                if (!productos.Contains(Valor(d, "codigoProductoSin")))
+                    errores.Add(MensajesSimulados.Crear(MensajesSimulados.ProductoNoExiste, "línea " + linea));
+                decimal subtotal = Decimal(d, "subTotal");
+                if (AlgoritmosSiat.Redondear(Decimal(d, "cantidad") * Decimal(d, "precioUnitario") - Decimal(d, "montoDescuento")) != subtotal)
+                    errores.Add(MensajesSimulados.Crear(MensajesSimulados.SubtotalIncorrecto, "línea " + linea));
+                if (Valor(d, "codigoDetalleTransaccion") == "1") originales++;
+                else { devueltos++; devuelto += subtotal; }
+            }
+
+            decimal montoDevuelto = Decimal(cab, "montoTotalDevuelto");
+            if (originales == 0 || devueltos == 0)
+                errores.Add(MensajesSimulados.Crear(MensajesSimulados.NotaSinDetalle));
+            if (AlgoritmosSiat.Redondear(devuelto) != montoDevuelto)
+                errores.Add(MensajesSimulados.Crear(MensajesSimulados.MontoDevueltoIncorrecto));
+            if (AlgoritmosSiat.Redondear(montoDevuelto * 0.13m) != Decimal(cab, "montoEfectivoCreditoDebito"))
+                errores.Add(MensajesSimulados.Crear(MensajesSimulados.CreditoDebitoIncorrecto));
+            if (montoDevuelto > Decimal(cab, "montoTotalOriginal"))
+                errores.Add(MensajesSimulados.Crear(MensajesSimulados.DevueltoSuperaOriginal));
+
+            if (errores.Count > 0)
+                return Observada(errores.ToArray());
+
+            return new RespuestaRecepcion
+            {
+                transaccion = true,
+                codigo_estado = CodigoEstadoSiat.Validada,
+                codigo_descripcion = "VALIDADA",
+                codigo_recepcion = Guid.NewGuid().ToString()
+            };
+        }
+
+        public RespuestaRecepcion AnulacionDocumentoAjuste(SolicitudAnulacionFactura s)
+        {
+            // Mismas reglas que la anulación de facturas (motivo válido y plazo hasta el día 9 del mes siguiente).
+            return AnulacionFactura(s);
+        }
+
         private static RespuestaEvento ErrorEvento(MensajeSiat mensaje)
         {
             RespuestaEvento r = new RespuestaEvento { transaccion = false };

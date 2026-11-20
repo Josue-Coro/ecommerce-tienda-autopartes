@@ -394,7 +394,8 @@ namespace CapaNegocio.Facturacion
             return string.IsNullOrEmpty(Mensaje);
         }
 
-        private string ElegirLeyenda(string actividad)
+        /// <summary>Elige al azar una leyenda de la Ley 453 de la actividad (debe cambiar en cada documento).</summary>
+        internal string ElegirLeyenda(string actividad)
         {
             List<CatalogoSin> leyendas = _cnConfig.ListarCatalogo(TipoCatalogoSin.LeyendaFactura);
             List<CatalogoSin> deActividad = leyendas.Where(l => l.codigo_actividad == actividad).ToList();
@@ -426,6 +427,12 @@ namespace CapaNegocio.Facturacion
             if (f.estado != EstadoFactura.Validada)
             {
                 Mensaje = "Solo se pueden anular facturas en estado VALIDADA (estado actual: " + f.estado + ").";
+                return false;
+            }
+            int notasVigentes = new CD_NotaCreditoDebito().ContarNotasVigentes(idFactura);
+            if (notasVigentes > 0)
+            {
+                Mensaje = "La factura tiene " + notasVigentes + " nota(s) de crédito-débito vigente(s). Anúlelas primero.";
                 return false;
             }
             if (!_cnConfig.ListarCatalogo(TipoCatalogoSin.MotivoAnulacion).Any(m => m.codigo == codigoMotivo.ToString(CultureInfo.InvariantCulture)))

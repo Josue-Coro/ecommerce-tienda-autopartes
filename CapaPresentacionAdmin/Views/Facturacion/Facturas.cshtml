@@ -115,6 +115,7 @@
 </div>
 
 @Html.Partial("~/Views/Facturacion/_ModalEmitirFactura.cshtml")
+@Html.Partial("~/Views/Facturacion/_ModalNotaCreditoDebito.cshtml")
 
 @section scripts {
     <script>
@@ -162,6 +163,8 @@
                                 + '<button type="button" class="btn btn-outline-primary btn-imprimir" title="Imprimir (carta)"><i class="fas fa-print"></i></button>'
                                 + '<button type="button" class="btn btn-outline-primary btn-rollo" title="Imprimir (rollo 80 mm)"><i class="fas fa-receipt"></i></button>'
                                 + '<a class="btn btn-outline-secondary" title="Descargar XML" href="@Url.Action("DescargarXml", "Facturacion")?id=' + row.id_factura + '"><i class="fas fa-file-code"></i></a>';
+                            if (puedeAnular && row.estado === "VALIDADA")
+                                html += '<button type="button" class="btn btn-outline-warning btn-nota" title="Nota crédito-débito (devolución)"><i class="fas fa-undo-alt"></i></button>';
                             if (puedeAnular && row.anulable)
                                 html += '<button type="button" class="btn btn-outline-danger btn-anular" title="Anular"><i class="fas fa-ban"></i></button>';
                             return html + "</div>";
@@ -242,6 +245,10 @@
             }).fail(function (xhr) {
                 Swal.fire("Error", (xhr.responseJSON && xhr.responseJSON.mensaje) || "Error de comunicación con el servidor.", "error");
             }).always(function () { $btn.prop("disabled", false); });
+        });
+
+        $("#tablaFacturas tbody").on("click", ".btn-nota", function () {
+            abrirNotaCreditoDebito(filaDatos(tablaFacturas, this).id_factura, function () { recargar(); });
         });
 
         $("#tablaPendientes tbody").on("click", ".btn-facturar", function () {

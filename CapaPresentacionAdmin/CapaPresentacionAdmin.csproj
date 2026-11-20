@@ -570,6 +570,9 @@
     <Content Include="Views\Facturacion\Homologacion.cshtml" />
     <Content Include="Views\Facturacion\Facturas.cshtml" />
     <Content Include="Views\Facturacion\Contingencia.cshtml" />
+    <Content Include="Views\Facturacion\Notas.cshtml" />
+    <Content Include="Views\Facturacion\RepresentacionNota.cshtml" />
+    <Content Include="Views\Facturacion\_ModalNotaCreditoDebito.cshtml" />
     <Content Include="Views\Facturacion\Representacion.cshtml" />
     <Content Include="Views\Facturacion\_ModalEmitirFactura.cshtml" />
   </ItemGroup>

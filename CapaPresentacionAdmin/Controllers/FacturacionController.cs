@@ -25,6 +25,7 @@ namespace CapaPresentacionAdmin.Controllers
         private readonly CN_ConfiguracionFacturacion _cnConfig = new CN_ConfiguracionFacturacion();
         private readonly CN_Factura _cnFactura = new CN_Factura();
         private readonly CN_Contingencia _cnContingencia = new CN_Contingencia();
+        private readonly CN_NotaCreditoDebito _cnNota = new CN_NotaCreditoDebito();
 
         private User_activo UsuarioActual
         {
@@ -405,6 +406,129 @@ namespace CapaPresentacionAdmin.Controllers
             string mensaje;
             bool ok = _cnContingencia.GuardarSimulacionSinConexion(valor, out mensaje);
             return Json(new { resultado = ok, mensaje = mensaje });
+        }
+
+        // =============================================================== NOTAS CRÉDITO-DÉBITO
+
+        public ActionResult Notas()
+        {
+            return View();
+        }
+
+        [HttpGet]
+        public JsonResult ListarNotas(string fechaInicio, string fechaFin)
+        {
+            var lista = _cnNota.Listar(ParsearFecha(fechaInicio), ParsearFecha(fechaFin), null).Select(n => new
+            {
+                n.id_nota,
+                n.numero_nota,
+                n.id_factura,
+                numero_factura = n.oFactura.numero_factura,
+                cliente = n.oFactura.nombre_razon_social,
+                documento = n.oFactura.numero_documento,
+                fecha_emision = n.fecha_emision.ToString("dd/MM/yyyy HH:mm"),
+                n.monto_total_devuelto,
+                n.monto_efectivo_credito_debito,
+                n.motivo,
+                n.reingreso_stock,
+                n.estado,
+                n.mensajes,
+                n.motivo_anulacion,
+                fecha_limite_anulacion = CN_Factura.FechaLimiteAnulacion(n.fecha_emision).ToString("dd/MM/yyyy"),
+                anulable = n.estado == EstadoFactura.Validada && DateTime.Now <= CN_Factura.FechaLimiteAnulacion(n.fecha_emision)
+            }).ToList();
+            return Json(new { data = lista }, JsonRequestBehavior.AllowGet);
+        }
+
+        /// <summary>Datos de la factura para armar la nota: líneas con lo facturado, lo ya devuelto y lo disponible.</summary>
+        [HttpGet]
+        [ValidarSesion(Roles = RolesConfigurar)]
+        public JsonResult DatosNota(int idFactura)
+        {
+            string mensaje;
+            Factura f = _cnFactura.Obtener(idFactura, out mensaje);
+            if (f == null)
+                return Json(new { resultado = false, mensaje = mensaje }, JsonRequestBehavior.AllowGet);
+            if (f.estado != EstadoFactura.Validada)
+                return Json(new { resultado = false, mensaje = "Solo se emiten notas sobre facturas VALIDADAS." }, JsonRequestBehavior.AllowGet);
+
+            var lineas = _cnNota.ObtenerLineasDevolvibles(idFactura).Select(l => new
+            {
+                l.oDetalle.id_factura_detalle,
+                l.oDetalle.codigo_producto,
+                l.oDetalle.descripcion,
+                l.oDetalle.cantidad,
+                l.oDetalle.precio_unitario,
+                l.oDetalle.sub_total,
+                es_producto = l.oDetalle.codigo_producto != null && l.oDetalle.codigo_producto.StartsWith("P-"),
+                l.cantidad_devuelta,
+                l.cantidad_disponible
+            }).ToList();
+
+            return Json(new
+            {
+                resultado = true,
+                factura = new
+                {
+                    f.id_factura,
+                    f.numero_factura,
+                    fecha = f.fecha_emision.ToString("dd/MM/yyyy"),
+                    f.nombre_razon_social,
+                    f.monto_total
+                },
+                lineas = lineas
+            }, JsonRequestBehavior.AllowGet);
+        }
+
+        [HttpPost]
+        [ValidarSesion(Roles = RolesConfigurar)]
+        public JsonResult EmitirNota(SolicitudEmisionNota objeto)
+        {
+            User_activo usuario = UsuarioActual;
+            ResultadoNota r = _cnNota.Emitir(objeto, usuario.id_tienda_user, NombreUsuarioFactura(usuario));
+            return Json(new { resultado = r.exito, r.id_nota, r.numero_nota, r.estado, mensaje = r.mensaje });
+        }
+
+        [HttpPost]
+        [ValidarSesion(Roles = RolesConfigurar)]
+        public JsonResult AnularNota(int idNota, int codigoMotivo)
+        {
+            string mensaje;
+            bool ok = _cnNota.Anular(idNota, codigoMotivo, out mensaje);
+            return Json(new { resultado = ok, mensaje = mensaje });
+        }
+
+        [HttpGet]
+        public ActionResult RepresentacionNota(int id)
+        {
+            string mensaje;
+            NotaCreditoDebito n = _cnNota.Obtener(id, out mensaje);
+            if (n == null)
+                return HttpNotFound(mensaje);
+
+            ConfiguracionFacturacion config = _cnConfig.ObtenerConfiguracion(out mensaje);
+            int ambiente = config != null ? config.codigo_ambiente : 2;
+            // El QR de la nota usa el NIT del emisor, el CUF y el número de la propia nota.
+            Factura paraQr = new Factura { nit_emisor = n.oFactura.nit_emisor, cuf = n.cuf, numero_factura = n.numero_nota };
+
+            ViewBag.UrlQr = CN_Factura.UrlQr(paraQr, ambiente, 2);
+            ViewBag.MontoLiteral = NumeroALetras.Convertir(n.monto_total_devuelto);
+            ViewBag.LeyendaPrincipal = CN_Factura.LeyendaPrincipal;
+            ViewBag.LeyendaModalidad = CN_Factura.LeyendaEnLinea;
+            ViewBag.EsSimulado = config == null || config.modo_simulado;
+            return View(n);
+        }
+
+        [HttpGet]
+        public ActionResult DescargarXmlNota(int id)
+        {
+            string mensaje;
+            NotaCreditoDebito n = _cnNota.Obtener(id, out mensaje);
+            if (n == null)
+                return HttpNotFound(mensaje);
+
+            byte[] contenido = new UTF8Encoding(false).GetBytes(n.archivo_xml);
+            return File(contenido, "application/xml", "nota_" + n.oFactura.nit_emisor + "_" + n.numero_nota + ".xml");
         }
 
         // =============================================================== utilidades

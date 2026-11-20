@@ -34,6 +34,8 @@ namespace CapaNegocio.Facturacion.Siat
         public RespuestaEvento RegistroEventoSignificativo(SolicitudEventoSignificativo solicitud) { return Fallo<RespuestaEvento>(); }
         public RespuestaRecepcion RecepcionPaqueteFactura(SolicitudRecepcionPaquete solicitud) { return Fallo<RespuestaRecepcion>(); }
         public RespuestaRecepcion ValidacionRecepcionPaqueteFactura(SolicitudValidacionPaquete solicitud) { return Fallo<RespuestaRecepcion>(); }
+        public RespuestaRecepcion RecepcionDocumentoAjuste(SolicitudRecepcionDocumentoAjuste solicitud) { return Fallo<RespuestaRecepcion>(); }
+        public RespuestaRecepcion AnulacionDocumentoAjuste(SolicitudAnulacionFactura solicitud) { return Fallo<RespuestaRecepcion>(); }
 
         private static T Fallo<T>() where T : RespuestaSiat, new()
         {

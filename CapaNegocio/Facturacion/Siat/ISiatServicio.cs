@@ -41,6 +41,12 @@ namespace CapaNegocio.Facturacion.Siat
 
         /// <summary>Servicio "validacionRecepcionPaqueteFactura".</summary>
         RespuestaRecepcion ValidacionRecepcionPaqueteFactura(SolicitudValidacionPaquete solicitud);
+
+        /// <summary>Servicio "recepcionDocumentoAjuste" (notas de crédito-débito; solo en línea).</summary>
+        RespuestaRecepcion RecepcionDocumentoAjuste(SolicitudRecepcionDocumentoAjuste solicitud);
+
+        /// <summary>Servicio "anulacionDocumentoAjuste".</summary>
+        RespuestaRecepcion AnulacionDocumentoAjuste(SolicitudAnulacionFactura solicitud);
     }
 
     /// <summary>
