@@ -17,6 +17,96 @@ namespace CapaDatos
         /// </summary>
         /// <param name="idRol">El ID del rol para el cual se quieren obtener los permisos.</param>
         /// <returns>Una lista de enteros con los IDs de permisos.</returns>
+        /// <summary>
+        /// Códigos (nombres) de los permisos activos de un rol activo. Si el rol está inactivo no devuelve ninguno.
+        /// </summary>
+        public HashSet<string> ObtenerCodigosPorRol(int idRol)
+        {
+            HashSet<string> codigos = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            using (SqlConnection oconexion = new SqlConnection(Conexion.cn))
+            {
+                SqlCommand cmd = new SqlCommand(@"
+                    SELECT P.nombre
+                    FROM SEGURIDAD.ROLES_PERMISOS RP
+                    INNER JOIN SEGURIDAD.PERMISOS P ON P.id_permiso = RP.PERMISOS_id_permiso AND P.estado = 1
+                    INNER JOIN SEGURIDAD.ROLES R ON R.id_rol = RP.ROLES_id_rol AND R.estado = 1
+                    WHERE RP.ROLES_id_rol = @IdRol", oconexion);
+                cmd.Parameters.AddWithValue("@IdRol", idRol);
+                oconexion.Open();
+                using (SqlDataReader dr = cmd.ExecuteReader())
+                    while (dr.Read())
+                        codigos.Add(dr["nombre"].ToString().Trim());
+            }
+            return codigos;
+        }
+
+        /// <summary>
+        /// Crea el permiso si no existe (por nombre) y, solo en ese caso, lo asigna a los roles indicados que existan.
+        /// Devuelve true si lo creó. No modifica permisos ni asignaciones existentes.
+        /// </summary>
+        public bool InstalarPermiso(string codigo, string descripcion, IEnumerable<string> rolesPorDefecto)
+        {
+            using (SqlConnection oconexion = new SqlConnection(Conexion.cn))
+            {
+                oconexion.Open();
+                using (SqlTransaction tx = oconexion.BeginTransaction())
+                {
+                    SqlCommand existe = new SqlCommand("SELECT COUNT(*) FROM SEGURIDAD.PERMISOS WITH (UPDLOCK, HOLDLOCK) WHERE nombre = @Nombre", oconexion, tx);
+                    existe.Parameters.AddWithValue("@Nombre", codigo);
+                    if (Convert.ToInt32(existe.ExecuteScalar()) > 0)
+                    {
+                        tx.Commit();
+                        return false;
+                    }
+
+                    SqlCommand insertar = new SqlCommand(
+                        "INSERT INTO SEGURIDAD.PERMISOS (nombre, descripcion, estado) VALUES (@Nombre, @Descripcion, 1); SELECT CAST(SCOPE_IDENTITY() AS INT);", oconexion, tx);
+                    insertar.Parameters.AddWithValue("@Nombre", codigo);
+                    insertar.Parameters.AddWithValue("@Descripcion", descripcion.Length > 150 ? descripcion.Substring(0, 150) : descripcion);
+                    int idPermiso = Convert.ToInt32(insertar.ExecuteScalar());
+
+                    foreach (string rol in rolesPorDefecto)
+                    {
+                        SqlCommand asignar = new SqlCommand(@"
+                            INSERT INTO SEGURIDAD.ROLES_PERMISOS (ROLES_id_rol, PERMISOS_id_permiso)
+                            SELECT R.id_rol, @IdPermiso FROM SEGURIDAD.ROLES R
+                            WHERE UPPER(LTRIM(RTRIM(R.nombre))) = @Rol
+                              AND NOT EXISTS (SELECT 1 FROM SEGURIDAD.ROLES_PERMISOS X WHERE X.ROLES_id_rol = R.id_rol AND X.PERMISOS_id_permiso = @IdPermiso)",
+                            oconexion, tx);
+                        asignar.Parameters.AddWithValue("@IdPermiso", idPermiso);
+                        asignar.Parameters.AddWithValue("@Rol", rol.ToUpperInvariant());
+                        asignar.ExecuteNonQuery();
+                    }
+                    tx.Commit();
+                    return true;
+                }
+            }
+        }
+
+        /// <summary>Estado del usuario y su rol actual (para detectar cambios después de iniciar sesión).</summary>
+        public bool ObtenerRolActual(int idUsuario, out bool activo, out int idRol, out string nombreRol)
+        {
+            activo = false; idRol = 0; nombreRol = null;
+            using (SqlConnection oconexion = new SqlConnection(Conexion.cn))
+            {
+                SqlCommand cmd = new SqlCommand(@"
+                    SELECT U.estado, R.id_rol, R.nombre
+                    FROM SEGURIDAD.USUARIO U
+                    INNER JOIN SEGURIDAD.ROLES R ON R.id_rol = U.ROLES_id_rol
+                    WHERE U.id_usuario = @IdUsuario", oconexion);
+                cmd.Parameters.AddWithValue("@IdUsuario", idUsuario);
+                oconexion.Open();
+                using (SqlDataReader dr = cmd.ExecuteReader())
+                {
+                    if (!dr.Read()) return false;
+                    activo = Convert.ToBoolean(dr["estado"]);
+                    idRol = Convert.ToInt32(dr["id_rol"]);
+                    nombreRol = dr["nombre"].ToString().Trim();
+                    return true;
+                }
+            }
+        }
+
         public List<int> ObtenerPermisosPorRol(int idRol)
         {
             List<int> listaIdPermisos = new List<int>();

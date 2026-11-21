@@ -1,0 +1,141 @@
+@* Modal para emitir una Nota Crédito-Débito sobre una factura validada.
+   Uso:  abrirNotaCreditoDebito(idFactura, function (resultado) { ... });
+   Requiere jQuery, Bootstrap 5 y SweetAlert2. *@
+
+<div class="modal fade" id="modalNotaCD" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title"><i class="fas fa-undo-alt me-2"></i>Nota crédito-débito <span id="ncTitulo"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="ncIdFactura" value="0" />
+                <div class="alert alert-secondary py-2 small" id="ncResumen"></div>
+                <p class="small text-muted mb-2">Indique la cantidad <b>devuelta</b> de cada ítem. La nota ajusta el crédito / débito fiscal en el 13 % del monto devuelto.</p>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered align-middle" id="ncTabla">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Código</th>
+                                <th>Descripción</th>
+                                <th class="text-end">Facturado</th>
+                                <th class="text-end">Ya devuelto</th>
+                                <th class="text-end">P. unitario</th>
+                                <th style="width:130px">Devolver</th>
+                                <th class="text-end">Subtotal devuelto</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="row g-2">
+                    <div class="col-md-7">
+                        <label class="form-label" for="ncMotivo">Motivo de la devolución</label>
+                        <input type="text" class="form-control" id="ncMotivo" maxlength="500" placeholder="Ej.: producto con falla de fábrica">
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" id="ncReingreso" checked>
+                            <label class="form-check-label" for="ncReingreso">Reingresar al inventario los productos devueltos</label>
+                        </div>
+                    </div>
+                    <div class="col-md-5">
+                        <table class="table table-sm mb-0">
+                            <tr><td>Monto devuelto Bs</td><td class="text-end fw-bold" id="ncTotalDevuelto">0.00</td></tr>
+                            <tr><td>Crédito / débito fiscal (13 %) Bs</td><td class="text-end fw-bold" id="ncTotalEfectivo">0.00</td></tr>
+                        </table>
+                    </div>
+                </div>
+                <div id="ncMensaje" class="alert alert-danger mt-3 mb-0" role="alert" style="display:none"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="ncBtnEmitir" onclick="emitirNotaConfirmar()">
+                    <i class="fas fa-paper-plane me-1"></i>Emitir nota y enviar al SIN
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    var ncCallback = null;
+
+    function ncUrl(accion) { return '@Url.Action("__A__", "Facturacion")'.replace("__A__", accion); }
+    function ncEscapar(t) { return $("<span>").text(t == null ? "" : t).html(); }
+    function ncRedondear(v) { return Math.round((v + Number.EPSILON) * 100) / 100; }
+
+    function ncRecalcular() {
+        var total = 0;
+        $("#ncTabla tbody tr").each(function () {
+            var cant = parseFloat($(this).find(".nc-cantidad").val()) || 0;
+            var sub = ncRedondear(cant * parseFloat($(this).data("precio")));
+            $(this).find(".nc-subtotal").text(sub.toFixed(2));
+            total += sub;
+        });
+        total = ncRedondear(total);
+        $("#ncTotalDevuelto").text(total.toFixed(2));
+        $("#ncTotalEfectivo").text(ncRedondear(total * 0.13).toFixed(2));
+    }
+
+    function abrirNotaCreditoDebito(idFactura, callback) {
+        ncCallback = callback || null;
+        $("#ncMensaje").hide();
+        $("#ncMotivo").val("");
+        $("#ncReingreso").prop("checked", true);
+        $.get(ncUrl("DatosNota"), { idFactura: idFactura }, function (res) {
+            if (!res.resultado) { Swal.fire("Atención", res.mensaje, "warning"); return; }
+            $("#ncIdFactura").val(idFactura);
+            $("#ncTitulo").text("- Factura N° " + res.factura.numero_factura);
+            $("#ncResumen").html("<b>Factura N° " + res.factura.numero_factura + "</b> del " + res.factura.fecha + " &middot; "
+                + ncEscapar(res.factura.nombre_razon_social) + " &middot; Total <b>Bs " + Number(res.factura.monto_total).toFixed(2) + "</b>");
+
+            var $tb = $("#ncTabla tbody").empty();
+            $.each(res.lineas, function (i, l) {
+                var disponible = Number(l.cantidad_disponible);
+                $tb.append('<tr data-id="' + l.id_factura_detalle + '" data-precio="' + l.precio_unitario + '">'
+                    + "<td>" + ncEscapar(l.codigo_producto) + "</td><td>" + ncEscapar(l.descripcion) + "</td>"
+                    + '<td class="text-end">' + Number(l.cantidad).toFixed(2) + "</td>"
+                    + '<td class="text-end">' + Number(l.cantidad_devuelta).toFixed(2) + "</td>"
+                    + '<td class="text-end">' + Number(l.precio_unitario).toFixed(2) + "</td>"
+                    + '<td><input type="number" class="form-control form-control-sm nc-cantidad" min="0" step="' + (l.es_producto ? "1" : "0.01")
+                    + '" max="' + disponible + '" value="0" oninput="ncRecalcular()"' + (disponible <= 0 ? " disabled" : "") + "></td>"
+                    + '<td class="text-end nc-subtotal">0.00</td></tr>');
+            });
+            ncRecalcular();
+            $("#modalNotaCD").modal("show");
+        });
+    }
+
+    function emitirNotaConfirmar() {
+        $("#ncMensaje").hide();
+        var lineas = [];
+        $("#ncTabla tbody tr").each(function () {
+            var cant = parseFloat($(this).find(".nc-cantidad").val()) || 0;
+            if (cant > 0) lineas.push({ id_factura_detalle: parseInt($(this).data("id")), cantidad: cant });
+        });
+        if (lineas.length === 0) { $("#ncMensaje").text("Indique la cantidad devuelta de al menos un ítem.").show(); return; }
+        if (!$.trim($("#ncMotivo").val())) { $("#ncMensaje").text("Indique el motivo de la devolución.").show(); return; }
+
+        var $btn = $("#ncBtnEmitir").prop("disabled", true);
+        $.ajax({
+            url: ncUrl("EmitirNota"),
+            type: "POST",
+            data: JSON.stringify({ objeto: { id_factura: parseInt($("#ncIdFactura").val()), motivo: $.trim($("#ncMotivo").val()), reingresar_stock: $("#ncReingreso").is(":checked"), lineas: lineas } }),
+            contentType: "application/json; charset=utf-8"
+        }).done(function (res) {
+            if (res.resultado) {
+                $("#modalNotaCD").modal("hide");
+                Swal.fire({
+                    icon: "success", title: "Nota N° " + res.numero_nota, text: res.mensaje,
+                    showCancelButton: true, confirmButtonText: '<i class="fas fa-print"></i> Imprimir', cancelButtonText: "Cerrar"
+                }).then(function (r) { if (r.isConfirmed) window.open(ncUrl("RepresentacionNota") + "?id=" + res.id_nota, "_blank"); });
+                if (ncCallback) ncCallback(res);
+            } else {
+                $("#ncMensaje").text(res.mensaje).show();
+                if (res.id_nota > 0 && ncCallback) ncCallback(res);
+            }
+        }).fail(function (xhr) {
+            $("#ncMensaje").text((xhr.responseJSON && xhr.responseJSON.mensaje) || "Error de comunicación con el servidor.").show();
+        }).always(function () { $btn.prop("disabled", false); });
+    }
+</script>

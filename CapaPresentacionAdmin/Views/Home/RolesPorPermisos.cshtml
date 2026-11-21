@@ -129,9 +129,9 @@
                             var checkboxHtml = `
                                 <div class="col-sm-6 col-md-4 col-lg-3 mb-2">
                                     <div class="form-check">
-                                        <input class="form-check-input permiso-checkbox" type="checkbox" value="${permiso.IdPermiso}" id="permiso-${permiso.IdPermiso}" ${checked}>
-                                        <label class="form-check-label" for="permiso-${permiso.IdPermiso}">
-                                            ${permiso.Nombre}
+                                        <input class="form-check-input permiso-checkbox" type="checkbox" value="${esc(permiso.IdPermiso)}" id="permiso-${esc(permiso.IdPermiso)}" ${checked}>
+                                        <label class="form-check-label" for="permiso-${esc(permiso.IdPermiso)}">
+                                            ${esc(permiso.Nombre)}
                                         </label>
                                     </div>
                                 </div>

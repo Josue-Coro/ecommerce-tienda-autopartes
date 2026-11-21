@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copie este archivo como ConnectionStrings.config (que no se sube al repositorio) y complete sus datos.
+     Recomendado: un usuario de SQL Server propio de la aplicación, con permisos solo sobre la base, en lugar de "sa". -->
+<connectionStrings>
+  <add name="cadena" providerName="System.Data.SqlClient"
+       connectionString="Data Source=SU_SERVIDOR\SQLEXPRESS; Initial Catalog=DOSHERMANOS; User ID=usuario_app; Password=CAMBIAR" />
+</connectionStrings>

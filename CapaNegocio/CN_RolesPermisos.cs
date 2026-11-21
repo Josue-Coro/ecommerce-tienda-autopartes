@@ -52,6 +52,7 @@ namespace CapaNegocio
             }
 
             bool resultado = objCapaDato.AsignarPermisosARol(idRol, idsPermisos);
+            CN_Autorizacion.Invalidar();   // los cambios se aplican de inmediato a las sesiones abiertas
 
             if (resultado)
             {

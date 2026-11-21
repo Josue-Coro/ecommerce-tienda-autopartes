@@ -32,12 +32,14 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
+    <Reference Include="System.Configuration" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Data" />
     <Reference Include="System.Net.Http" />
+    <Reference Include="System.Numerics" />
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
@@ -49,6 +51,8 @@
     <Compile Include="CN_Producto.cs" />
     <Compile Include="CN_Proveedores.cs" />
     <Compile Include="CN_Recursos.cs" />
+    <Compile Include="CN_Seguridad.cs" />
+    <Compile Include="CN_Autorizacion.cs" />
     <Compile Include="CN_Reporte.cs" />
     <Compile Include="CN_Roles.cs" />
     <Compile Include="CN_RolesPermisos.cs" />
@@ -59,7 +63,25 @@
     <Compile Include="CN_UnidadMedida.cs" />
     <Compile Include="CN_Usuarios.cs" />
     <Compile Include="CN_Venta.cs" />
+    <Compile Include="Facturacion\AlgoritmosSiat.cs" />
+    <Compile Include="Facturacion\GeneradorXmlFactura.cs" />
+    <Compile Include="Facturacion\NumeroALetras.cs" />
+    <Compile Include="Facturacion\CN_ConfiguracionFacturacion.cs" />
+    <Compile Include="Facturacion\CN_Factura.cs" />
+    <Compile Include="Facturacion\CN_Contingencia.cs" />
+    <Compile Include="Facturacion\CN_NotaCreditoDebito.cs" />
+    <Compile Include="Contabilidad\CN_Contabilidad.cs" />
+    <Compile Include="Contabilidad\CN_LibrosFiscales.cs" />
+    <Compile Include="Facturacion\ArchivoTar.cs" />
+    <Compile Include="Facturacion\Siat\ISiatServicio.cs" />
+    <Compile Include="Facturacion\Siat\CatalogosSimulados.cs" />
+    <Compile Include="Facturacion\Siat\SiatServicioSimulado.cs" />
+    <Compile Include="Facturacion\Siat\SiatServicioFactory.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Facturacion\Esquemas\facturaComputarizadaCompraVenta.xsd" />
+    <EmbeddedResource Include="Facturacion\Esquemas\notaComputarizadaCreditoDebito.xsd" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\CapaDatos\CapaDatos.csproj">

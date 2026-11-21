@@ -1,0 +1,184 @@
+@* Modal reutilizable para emitir la factura de una venta.
+   Uso:  abrirEmisionFactura(idVenta, function (resultado) { ... });
+   Requiere jQuery, Bootstrap 5 y SweetAlert2 (cargados por la página que lo incluye). *@
+
+<div class="modal fade" id="modalEmitirFactura" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title"><i class="fas fa-file-invoice me-2"></i>Emitir factura <span id="efTituloVenta"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="efIdVenta" value="0" />
+
+                <div class="alert alert-secondary py-2 small mb-3" id="efResumenVenta"></div>
+
+                <div class="row g-2">
+                    <div class="col-md-4">
+                        <label for="efTipoDocumento" class="form-label">Tipo de documento</label>
+                        <select class="form-select" id="efTipoDocumento"></select>
+                    </div>
+                    <div class="col-md-5">
+                        <label for="efNumeroDocumento" class="form-label">Número de documento</label>
+                        <input type="text" class="form-control" id="efNumeroDocumento" maxlength="20" autocomplete="off" placeholder="CI o NIT">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="efComplemento" class="form-label">Complemento</label>
+                        <input type="text" class="form-control" id="efComplemento" maxlength="5" autocomplete="off" placeholder="Ej.: 1A">
+                    </div>
+                    <div class="col-md-7">
+                        <label for="efRazonSocial" class="form-label">Nombre o razón social</label>
+                        <input type="text" class="form-control" id="efRazonSocial" maxlength="500" autocomplete="off">
+                    </div>
+                    <div class="col-md-5">
+                        <label for="efCorreo" class="form-label">Correo (para enviar la factura)</label>
+                        <input type="email" class="form-control" id="efCorreo" maxlength="100" autocomplete="off">
+                    </div>
+                    <div class="col-md-6" id="efGrupoTarjeta" style="display:none">
+                        <label for="efNumeroTarjeta" class="form-label">Número de tarjeta</label>
+                        <input type="text" class="form-control" id="efNumeroTarjeta" maxlength="19" autocomplete="off" placeholder="Se guardará enmascarado">
+                    </div>
+                    <div class="col-12">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="efGuardarCliente" checked>
+                            <label class="form-check-label" for="efGuardarCliente">Guardar estos datos para las próximas facturas del cliente</label>
+                        </div>
+                        <div class="form-check" id="efGrupoExcepcion" style="display:none">
+                            <input class="form-check-input" type="checkbox" id="efExcepcionNit">
+                            <label class="form-check-label text-danger" for="efExcepcionNit">
+                                Emitir aunque el SIN no reconozca el NIT (código de excepción 1)
+                            </label>
+                        </div>
+                        <div class="form-text">
+                            Ventas menores sin datos del comprador: tipo <b>NIT</b>, número <b>99003</b>, nombre <b>S/N</b>.
+                        </div>
+                    </div>
+                </div>
+
+                <div id="efMensaje" class="alert alert-danger mt-3 mb-0" role="alert" style="display:none"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="efBtnEmitir" onclick="emitirFacturaConfirmar()">
+                    <i class="fas fa-paper-plane me-1"></i>Emitir y enviar al SIN
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    var efCallbackExito = null;
+    var efTiposDocumentoCargados = false;
+
+    function efUrl(accion) {
+        return '@Url.Action("__ACCION__", "Facturacion")'.replace('__ACCION__', accion);
+    }
+
+    function efMostrarMensaje(texto) {
+        if (texto) { $("#efMensaje").text(texto).show(); } else { $("#efMensaje").hide().text(""); }
+    }
+
+    function efCargarTiposDocumento() {
+        if (efTiposDocumentoCargados) return $.Deferred().resolve().promise();
+        return $.get(efUrl("ListarCatalogo"), { tipo: "TIPO_DOCUMENTO_IDENTIDAD" }, function (res) {
+            var $sel = $("#efTipoDocumento").empty();
+            $.each(res.data, function (i, c) { $sel.append($("<option>").val(c.codigo).text(c.descripcion)); });
+            if (res.data.length === 0) {
+                $sel.append($("<option>").val("1").text("CI - CÉDULA DE IDENTIDAD"));
+                $sel.append($("<option>").val("5").text("NIT"));
+            }
+            efTiposDocumentoCargados = true;
+        });
+    }
+
+    function abrirEmisionFactura(idVenta, callbackExito) {
+        efCallbackExito = callbackExito || null;
+        efMostrarMensaje(null);
+        $("#efGrupoExcepcion").hide();
+        $("#efExcepcionNit").prop("checked", false);
+        $("#efIdVenta").val(idVenta);
+        $("#efTituloVenta").text("- Venta #" + idVenta);
+        $("#efNumeroTarjeta").val("");
+
+        $.when(efCargarTiposDocumento()).then(function () {
+            $.get(efUrl("DatosEmision"), { idVenta: idVenta }, function (res) {
+                if (!res.resultado) { Swal.fire("Error", res.mensaje, "error"); return; }
+                if (res.venta.estado_factura_vigente) {
+                    Swal.fire("Venta ya facturada", "La venta #" + idVenta + " ya tiene una factura " + res.venta.estado_factura_vigente + ".", "info");
+                    return;
+                }
+
+                $("#efResumenVenta").html(
+                    "<b>Venta #" + res.venta.id_venta + "</b> del " + res.venta.fecha +
+                    " &middot; Total <b>Bs " + Number(res.venta.monto_total).toFixed(2) + "</b>" +
+                    " &middot; Pago: " + $("<span>").text(res.venta.tipo_pago).html() +
+                    " &middot; " + res.venta.lineas + " ítem(s)");
+                $("#efGrupoTarjeta").toggle(res.venta.es_tarjeta === true);
+
+                var c = res.cliente || {};
+                $("#efTipoDocumento").val(c.codigo_tipo_documento || 1);
+                $("#efNumeroDocumento").val(c.numero_documento || "");
+                $("#efComplemento").val(c.complemento || "");
+                $("#efRazonSocial").val(c.razon_social || "");
+                $("#efCorreo").val(c.correo || "");
+
+                $("#modalEmitirFactura").modal("show");
+            });
+        });
+    }
+
+    function emitirFacturaConfirmar() {
+        efMostrarMensaje(null);
+        var objeto = {
+            id_venta: parseInt($("#efIdVenta").val()),
+            codigo_tipo_documento: parseInt($("#efTipoDocumento").val()),
+            numero_documento: $.trim($("#efNumeroDocumento").val()),
+            complemento: $.trim($("#efComplemento").val()),
+            razon_social: $.trim($("#efRazonSocial").val()),
+            correo: $.trim($("#efCorreo").val()),
+            numero_tarjeta: $.trim($("#efNumeroTarjeta").val()),
+            autorizar_nit_invalido: $("#efExcepcionNit").is(":checked"),
+            guardar_datos_cliente: $("#efGuardarCliente").is(":checked")
+        };
+
+        if (!objeto.numero_documento) { efMostrarMensaje("Ingrese el número de documento."); return; }
+        if (!objeto.razon_social) { efMostrarMensaje("Ingrese el nombre o razón social."); return; }
+
+        var $btn = $("#efBtnEmitir").prop("disabled", true);
+        $("#modalEmitirFactura .modal-content").LoadingOverlay("show");
+
+        $.ajax({
+            url: efUrl("EmitirFactura"),
+            type: "POST",
+            data: JSON.stringify({ objeto: objeto }),
+            contentType: "application/json; charset=utf-8"
+        }).done(function (res) {
+            if (res.resultado) {
+                $("#modalEmitirFactura").modal("hide");
+                Swal.fire({
+                    icon: "success",
+                    title: "Factura N° " + res.numero_factura,
+                    text: res.mensaje,
+                    showCancelButton: true,
+                    confirmButtonText: '<i class="fas fa-print"></i> Imprimir',
+                    cancelButtonText: "Cerrar"
+                }).then(function (r) {
+                    if (r.isConfirmed) window.open(efUrl("Representacion") + "?id=" + res.id_factura, "_blank");
+                });
+                if (efCallbackExito) efCallbackExito(res);
+            } else {
+                if (res.requiere_excepcion_nit) $("#efGrupoExcepcion").show();
+                efMostrarMensaje(res.mensaje);
+                if (res.id_factura > 0 && efCallbackExito) efCallbackExito(res); // factura OBSERVADA registrada
+            }
+        }).fail(function (xhr) {
+            var r = xhr.responseJSON;
+            efMostrarMensaje(r && r.mensaje ? r.mensaje : "Error de comunicación con el servidor.");
+        }).always(function () {
+            $btn.prop("disabled", false);
+            $("#modalEmitirFactura .modal-content").LoadingOverlay("hide");
+        });
+    }
+</script>

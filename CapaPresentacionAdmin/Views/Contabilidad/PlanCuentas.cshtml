@@ -1,0 +1,147 @@
+@{
+    ViewBag.Title = "Plan de cuentas";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+@Html.Partial("~/Views/Contabilidad/_Utilidades.cshtml")
+
+<ol class="breadcrumb mb-4 mt-4">
+    <li class="breadcrumb-item"><a href="@Url.Action("Index","Home")">Resumen</a></li>
+    <li class="breadcrumb-item">Contabilidad</li>
+    <li class="breadcrumb-item active">Plan de cuentas</li>
+</ol>
+
+<div class="row">
+    <div class="col-xl-7 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-sitemap me-2"></i><b>Plan de cuentas</b></span>
+                <button type="button" class="btn btn-success btn-sm" onclick="abrirCuenta(null)"><i class="fas fa-plus me-1"></i>Nueva cuenta</button>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted">Solo las cuentas <b>imputables</b> (último nivel) reciben movimientos. Los grupos 1 a 5 son fijos; las cuentas nuevas heredan el tipo de su cuenta padre.</p>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover" id="tablaCuentas">
+                        <thead class="table-light"><tr><th>Código</th><th>Nombre</th><th>Tipo</th><th>Naturaleza</th><th></th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-5 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white"><i class="fas fa-cogs me-2"></i><b>Cuentas de los asientos automáticos</b></div>
+            <div class="card-body">
+                <p class="small text-muted">Cuentas que se usan al contabilizar facturas, notas y compras.</p>
+                <table class="table table-sm" id="tablaConfig">
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalCuenta" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title" id="cuTitulo">Cuenta</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="cuId" value="0" />
+                <div class="row g-2">
+                    <div class="col-5">
+                        <label class="form-label" for="cuCodigo">Código</label>
+                        <input type="text" class="form-control" id="cuCodigo" maxlength="20" placeholder="5.2.1.07">
+                    </div>
+                    <div class="col-7">
+                        <label class="form-label" for="cuNombre">Nombre</label>
+                        <input type="text" class="form-control" id="cuNombre" maxlength="150">
+                    </div>
+                    <div class="col-6 form-check ms-2">
+                        <input class="form-check-input" type="checkbox" id="cuImputable" checked>
+                        <label class="form-check-label" for="cuImputable">Imputable</label>
+                    </div>
+                    <div class="col-5 form-check">
+                        <input class="form-check-input" type="checkbox" id="cuEstado" checked>
+                        <label class="form-check-label" for="cuEstado">Activa</label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="guardarCuenta()">Guardar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section scripts {
+    <script>
+        var cuentas = [];
+
+        function cargar() {
+            $.get(ctUrl("ListarCuentas"), function (res) {
+                cuentas = res.data;
+                var $tb = $("#tablaCuentas tbody").empty();
+                $.each(cuentas, function (i, c) {
+                    var sangria = (c.nivel - 1) * 18;
+                    $tb.append('<tr class="' + (c.imputable ? "" : "fw-bold") + (c.estado ? "" : " text-muted") + '">'
+                        + "<td>" + ctEscapar(c.codigo) + '</td><td style="padding-left:' + (8 + sangria) + 'px">' + ctEscapar(c.nombre)
+                        + (c.estado ? "" : ' <span class="badge bg-secondary">inactiva</span>') + "</td>"
+                        + "<td>" + c.tipo + "</td><td>" + (c.naturaleza === "D" ? "Deudora" : "Acreedora") + "</td>"
+                        + '<td class="text-end">' + (c.nivel > 1 ? '<button type="button" class="btn btn-outline-secondary btn-sm py-0" onclick="abrirCuenta(' + c.id_cuenta + ')"><i class="fas fa-pen"></i></button>' : "")
+                        + "</td></tr>");
+                });
+                cargarConfig();
+            });
+        }
+
+        function cargarConfig() {
+            $.get(ctUrl("ListarCuentaConfig"), function (res) {
+                var opciones = $.map(cuentas.filter(function (c) { return c.imputable && c.estado; }), function (c) {
+                    return '<option value="' + c.id_cuenta + '">' + ctEscapar(c.codigo + " " + c.nombre) + "</option>";
+                }).join("");
+                var $tb = $("#tablaConfig tbody").empty();
+                $.each(res.data, function (i, g) {
+                    var $sel = $('<select class="form-select form-select-sm">' + opciones + "</select>").val(g.id_cuenta).data("clave", g.clave);
+                    var $tr = $("<tr>").append($('<td class="small">').text(g.descripcion)).append($("<td>").append($sel));
+                    $tb.append($tr);
+                });
+            });
+        }
+
+        $(document).on("change", "#tablaConfig select", function () {
+            ctPost("GuardarCuentaConfig", { clave: $(this).data("clave"), idCuenta: parseInt($(this).val()) }).done(function (res) {
+                Swal.fire({ toast: true, position: "top-end", icon: res.resultado ? "success" : "warning", title: res.mensaje, showConfirmButton: false, timer: 1800 });
+                if (!res.resultado) cargarConfig();
+            });
+        });
+
+        function abrirCuenta(id) {
+            var c = cuentas.find(function (x) { return x.id_cuenta === id; });
+            $("#cuId").val(c ? c.id_cuenta : 0);
+            $("#cuTitulo").text(c ? "Editar cuenta" : "Nueva cuenta");
+            $("#cuCodigo").val(c ? c.codigo : "").prop("disabled", !!c);
+            $("#cuNombre").val(c ? c.nombre : "");
+            $("#cuImputable").prop("checked", c ? c.imputable : true);
+            $("#cuEstado").prop("checked", c ? c.estado : true);
+            $("#modalCuenta").modal("show");
+        }
+
+        function guardarCuenta() {
+            ctPost("GuardarCuenta", {
+                objeto: {
+                    id_cuenta: parseInt($("#cuId").val()), codigo: $.trim($("#cuCodigo").val()), nombre: $.trim($("#cuNombre").val()),
+                    imputable: $("#cuImputable").is(":checked"), estado: $("#cuEstado").is(":checked")
+                }
+            }).done(function (res) {
+                if (res.resultado) { $("#modalCuenta").modal("hide"); cargar(); }
+                Swal.fire(res.resultado ? "Listo" : "Atención", res.mensaje, res.resultado ? "success" : "warning");
+            });
+        }
+
+        $(function () { cargar(); });
+    </script>
+}

@@ -246,19 +246,19 @@
                     },
                     {
                         "data": "oUnidadMedida",
-                        "render": function (data) { return data ? data.descripcion : "N/A"; }
+                        "render": function (data) { return data ? esc(data.descripcion) : "N/A"; }
                     },
                     {
                         "data": "oTienda",
-                        "render": function (data) { return data && data.nombre != null ? data.nombre : "Sin Sucursal"; }
+                        "render": function (data) { return data && data.nombre != null ? esc(data.nombre) : "Sin Sucursal"; }
                     },
                     {
                         "data": "oCategoria",
-                        "render": function (data) { return data ? data.descripcion : "N/A"; }
+                        "render": function (data) { return data ? esc(data.descripcion) : "N/A"; }
                     },
                     {
                         "data": "oMarca",
-                        "render": function (data) { return data ? data.descripcion : "N/A"; }
+                        "render": function (data) { return data ? esc(data.descripcion) : "N/A"; }
                     },
                     {
                         "data": "precio",

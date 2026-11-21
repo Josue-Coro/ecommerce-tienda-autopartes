@@ -14,34 +14,24 @@ using System.IO;
 using OfficeOpenXml;
 using OfficeOpenXml.Style;
 using System.Drawing;
+using CapaPresentacionAdmin.Filters;
 
 namespace CapaPresentacionAdmin.Controllers
 {
     //[Authorize]
+    [ValidarSesion]
     public class OperacionesController : Controller
     {
         // GET: Operaciones
 
         #region Ventas
         //Ventas
+        [ValidarSesion(Permisos = "VENTAS")]
         public ActionResult Ventas()
         {
-            //validar que id_user_activo no sea null osea que el usuario haya iniciado sesion para poder entrar aqui
-            if (Session["Usuario"] == null)
-            {
-                return RedirectToAction("Index", "Acceso");
-            }
-            else
-            {
-                //validar que el usuario tenga un rol asignado
-                User_activo oUserActivo = (User_activo)Session["Usuario"];
-                if (oUserActivo.id_user_activo == 0)
-                {
-                    return RedirectToAction("Index", "Acceso");
-                }
-            }
             return View();
         }
+        [ValidarSesion(Permisos = "VENTAS")]
         [HttpPost]
         public JsonResult RegistrarVenta(string objetoVenta)
         {
@@ -79,6 +69,7 @@ namespace CapaPresentacionAdmin.Controllers
 
 
         // Método existente para el historial de ventas
+        [ValidarSesion(Permisos = "VENTAS,REPORTES")]
         [HttpGet]
         public PartialViewResult ObtenerDetalleVenta(int idVenta)
         {
@@ -96,6 +87,7 @@ namespace CapaPresentacionAdmin.Controllers
         }
 
 
+        [ValidarSesion(Permisos = "VENTAS,REPORTES")]
         [HttpGet]
         public ActionResult GenerarFacturaFormal(int idVenta)
         {
@@ -221,6 +213,7 @@ namespace CapaPresentacionAdmin.Controllers
             return File(pdfBytes, "application/pdf", $"Factura_Venta_{oVenta.id_venta}.pdf");
         }
 
+        [ValidarSesion(Permisos = "VENTAS,REPORTES")]
         [HttpGet]
         public ActionResult GenerarReciboTermico(int idVenta)
         {
@@ -308,6 +301,7 @@ namespace CapaPresentacionAdmin.Controllers
 
         private CN_Reporte objCnReporte = new CN_Reporte();
 
+        [ValidarSesion(Permisos = "REPORTES")]
         public ActionResult ExportarHistorialVentasExcel(string fechaInicio, string fechaFin, string idVenta)
         {
             //usar el método de ObtenerVenta del public class CN_Venta en capa de negocio, unicamente pasando el idVenta, 
@@ -356,24 +350,12 @@ namespace CapaPresentacionAdmin.Controllers
 
         #region Compras
         //Compras
+        [ValidarSesion(Permisos = "COMPRAS")]
         public ActionResult Compras()
         {
-            //validar que id_user_activo no sea null osea que el usuario haya iniciado sesion para poder entrar aqui
-            if (Session["Usuario"] == null)
-            {
-                return RedirectToAction("Index", "Acceso");
-            }
-            else
-            {
-                //validar que el usuario tenga un rol asignado
-                User_activo oUserActivo = (User_activo)Session["Usuario"];
-                if (oUserActivo.id_user_activo == 0)
-                {
-                    return RedirectToAction("Index", "Acceso");
-                }
-            }
             return View();
         }
+        [ValidarSesion(Permisos = "COMPRAS")]
         [HttpPost]
         public JsonResult RegistrarCompra(string objetoCompra)
         {
@@ -413,6 +395,7 @@ namespace CapaPresentacionAdmin.Controllers
         }
 
         //HistorialCompras
+        [ValidarSesion(Permisos = "REPORTES")]
         [HttpGet]
         public JsonResult ObtenerHistorialCompras(string fechaInicio, string fechaFin, string idCompra)
         {
@@ -422,6 +405,7 @@ namespace CapaPresentacionAdmin.Controllers
             return Json(new { data = lista }, JsonRequestBehavior.AllowGet);
         }
         
+        [ValidarSesion(Permisos = "REPORTES")]
         public ActionResult ExportarHistorialComprasExcel(string fechaInicio, string fechaFin, string idCompra)
         {
             List<ReporteCompraDetalle> listaCompras = objCnReporte.ObtenerHistorialCompras(fechaInicio, fechaFin, idCompra);
@@ -480,25 +464,13 @@ namespace CapaPresentacionAdmin.Controllers
 
         #region Clientes 
         //clientes
+        [ValidarSesion(Permisos = "CLIENTES")]
         public ActionResult Clientes()
         {
-            //validar que id_user_activo no sea null osea que el usuario haya iniciado sesion para poder entrar aqui
-            if (Session["Usuario"] == null)
-            {
-                return RedirectToAction("Index", "Acceso");
-            }
-            else
-            {
-                //validar que el usuario tenga un rol asignado
-                User_activo oUserActivo = (User_activo)Session["Usuario"];
-                if (oUserActivo.id_user_activo == 0)
-                {
-                    return RedirectToAction("Index", "Acceso");
-                }
-            }
             return View();
         }
 
+        [ValidarSesion(Permisos = "CLIENTES,VENTAS")]
         [HttpGet]
         public JsonResult ListarClientes()
         {
@@ -509,6 +481,7 @@ namespace CapaPresentacionAdmin.Controllers
         }
 
 
+        [ValidarSesion(Permisos = "CLIENTES")]
         [HttpPost]
         public JsonResult GuardarCliente(Cliente objeto)
         {
@@ -527,6 +500,7 @@ namespace CapaPresentacionAdmin.Controllers
 
         }
 
+        [ValidarSesion(Permisos = "CLIENTES")]
         [HttpPost]
         public JsonResult EliminarCliente(int id)
         {
@@ -540,25 +514,13 @@ namespace CapaPresentacionAdmin.Controllers
 
         #region Proveedores
         //proveedores
+        [ValidarSesion(Permisos = "PROVEEDORES")]
         public ActionResult Proveedores()
         {
-            //validar que id_user_activo no sea null osea que el usuario haya iniciado sesion para poder entrar aqui
-            if (Session["Usuario"] == null)
-            {
-                return RedirectToAction("Index", "Acceso");
-            }
-            else
-            {
-                //validar que el usuario tenga un rol asignado
-                User_activo oUserActivo = (User_activo)Session["Usuario"];
-                if (oUserActivo.id_user_activo == 0)
-                {
-                    return RedirectToAction("Index", "Acceso");
-                }
-            }
             return View();
         }
 
+        [ValidarSesion(Permisos = "PROVEEDORES,COMPRAS")]
         [HttpGet]
         public JsonResult ListarProveedores()
         {
@@ -567,6 +529,7 @@ namespace CapaPresentacionAdmin.Controllers
             return Json(new { data = olista }, JsonRequestBehavior.AllowGet);
         }
 
+        [ValidarSesion(Permisos = "PROVEEDORES")]
         [HttpPost]
         public JsonResult GuardarProveedor(Proveedor objeto)
         {
@@ -583,6 +546,7 @@ namespace CapaPresentacionAdmin.Controllers
             return Json(new { resultado = resultado, mensaje = Mensaje }, JsonRequestBehavior.AllowGet);
         }
 
+        [ValidarSesion(Permisos = "PROVEEDORES")]
         [HttpPost]
         public JsonResult EliminarProveedor(int id)
         {
@@ -596,25 +560,13 @@ namespace CapaPresentacionAdmin.Controllers
 
         #region Stock
         //Stock
+        [ValidarSesion(Permisos = "STOCK")]
         public ActionResult Stock()
         {
-            //validar que id_user_activo no sea null osea que el usuario haya iniciado sesion para poder entrar aqui
-            if (Session["Usuario"] == null)
-            {
-                return RedirectToAction("Index", "Acceso");
-            }
-            else
-            {
-                //validar que el usuario tenga un rol asignado
-                User_activo oUserActivo = (User_activo)Session["Usuario"];
-                if (oUserActivo.id_user_activo == 0)
-                {
-                    return RedirectToAction("Index", "Acceso");
-                }
-            }
             return View();
         }
 
+        [ValidarSesion(Permisos = "STOCK")]
         [HttpGet]
         public JsonResult ListarStock()
         {
@@ -638,6 +590,7 @@ namespace CapaPresentacionAdmin.Controllers
             return Json(new { data = resultado }, JsonRequestBehavior.AllowGet);
         }
 
+        [ValidarSesion(Permisos = "STOCK")]
         [HttpPost]
         public JsonResult GuardarStock(string objeto)
         {
@@ -668,44 +621,18 @@ namespace CapaPresentacionAdmin.Controllers
 
         #region Reportes
         //Reporte de Ventas
+        [ValidarSesion(Permisos = "REPORTES")]
         public ActionResult ReporteVentas()
         {
-            //validar que id_user_activo no sea null osea que el usuario haya iniciado sesion para poder entrar aqui
-            if (Session["Usuario"] == null)
-            {
-                return RedirectToAction("Index", "Acceso");
-            }
-            else
-            {
-                //validar que el usuario tenga un rol asignado
-                User_activo oUserActivo = (User_activo)Session["Usuario"];
-                if (oUserActivo.id_user_activo == 0)
-                {
-                    return RedirectToAction("Index", "Acceso");
-                }
-            }
             return View();
         }
 
         
 
         //Reporte de Compras
+        [ValidarSesion(Permisos = "REPORTES")]
         public ActionResult ReporteCompras()
         {
-            //validar que id_user_activo no sea null osea que el usuario haya iniciado sesion para poder entrar aqui
-            if (Session["Usuario"] == null)
-            {
-                return RedirectToAction("Index", "Acceso");
-            }
-            else
-            {
-                //validar que el usuario tenga un rol asignado
-                User_activo oUserActivo = (User_activo)Session["Usuario"];
-                if (oUserActivo.id_user_activo == 0)
-                {
-                    return RedirectToAction("Index", "Acceso");
-                }
-            }
             return View();
         }
         #endregion

@@ -53,6 +53,7 @@
     <script>
 
 
+        function esc(t) { return t == null ? "" : String(t).replace(/[&<>"'`]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;", "`": "&#96;" }[c]; }); }
         function getQueryParameter(name) {
             name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]");
             var regex = new RegExp("[\\?&]" + name + "=([^&#]*)");
@@ -79,14 +80,14 @@
                                 <img class="card-img-top mb-5 mb-md-0" src="https://dummyimage.com/600x700/dee2e6/6c757d.jpg" alt="Cargando Imagen..." id="detail-img-producto-${producto.id_producto}" />
                             </div>
                             <div class="col-md-6">
-                                <div class="small mb-1">SKU: ${producto.id_producto}</div> <h1 class="display-5 fw-bolder">${producto.nombre}</h1>
+                                <div class="small mb-1">SKU: ${producto.id_producto}</div> <h1 class="display-5 fw-bolder">${esc(producto.nombre)}</h1>
                                 <div class="fs-5 mb-5">
                                     <span>Bs. ${producto.precio.toFixed(2).replace('.', ',')}</span>
                                     ${!producto.estado ? '<span class="badge bg-danger text-white ms-3">No Disponible</span>' : ''}
                                 </div>
-                                <p class="lead">${producto.descripcion}</p>
-                                <p class="small text-muted mb-0">Marca: ${producto.marca ? producto.marca.descripcion : 'N/A'}</p>
-                                <p class="small text-muted">Categoría: ${producto.categoria ? producto.categoria.descripcion : 'N/A'}</p>
+                                <p class="lead">${esc(producto.descripcion)}</p>
+                                <p class="small text-muted mb-0">Marca: ${producto.marca ? esc(producto.marca.descripcion) : "N/A"}</p>
+                                <p class="small text-muted">Categoría: ${producto.categoria ? esc(producto.categoria.descripcion) : "N/A"}</p>
                                 <div class="d-flex">
                                     <input class="form-control text-center me-3" id="inputQuantity" type="num" value="1" style="max-width: 3rem" />
                                     <button class="btn btn-outline-dark flex-shrink-0" type="button" ${!producto.estado ? 'disabled' : ''}>
@@ -154,7 +155,7 @@
                             html += `<div class="form-check">
                                 <input class="form-check-input filtro-categoria" type="checkbox" value="${categoria.id_categoria}" id="categoria-${categoria.id_categoria}">
                                 <label class="form-check-label" for="categoria-${categoria.id_categoria}">
-                                    ${categoria.descripcion}
+                                    ${esc(categoria.descripcion)}
                                 </label>
                             </div>`;
                         // }
@@ -179,7 +180,7 @@
                             html += `<div class="form-check">
                                 <input class="form-check-input filtro-marca" type="checkbox" value="${marca.id_marca}" id="marca-${marca.id_marca}">
                                 <label class="form-check-label" for="marca-${marca.id_marca}">
-                                    ${marca.descripcion}
+                                    ${esc(marca.descripcion)}
                                 </label>
                             </div>`;
 
@@ -215,11 +216,11 @@
 
                                         <div class="card-body p-4">
                                             <div class="text-center">
-                                                <h5 class="fw-bolder">${producto.nombre}</h5>
-                                                <p>${producto.descripcion}</p>
+                                                <h5 class="fw-bolder">${esc(producto.nombre)}</h5>
+                                                <p>${esc(producto.descripcion)}</p>
                                                 <p><strong>Precio:</strong> Bs. ${producto.precio.toFixed(2).replace('.', ',')}</p>
-                                                <p class="small text-muted mb-0">Marca: ${producto.marca ? producto.marca.descripcion : 'N/A'}</p>
-                                                <p class="small text-muted">Categoría: ${producto.categoria ? producto.categoria.descripcion : 'N/A'}</p>
+                                                <p class="small text-muted mb-0">Marca: ${producto.marca ? esc(producto.marca.descripcion) : "N/A"}</p>
+                                                <p class="small text-muted">Categoría: ${producto.categoria ? esc(producto.categoria.descripcion) : "N/A"}</p>
                                             </div>
                                         </div>
                                         <div class="card-footer p-4 pt-0 border-top-0 bg-transparent">

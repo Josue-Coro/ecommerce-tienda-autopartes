@@ -144,6 +144,11 @@
     <Compile Include="App_Start\FilterConfig.cs" />
     <Compile Include="App_Start\RouteConfig.cs" />
     <Compile Include="Controllers\AccesoController.cs" />
+    <Compile Include="Controllers\FacturacionController.cs" />
+    <Compile Include="Controllers\ContabilidadController.cs" />
+    <Compile Include="Filters\ValidarSesionAttribute.cs" />
+    <Compile Include="Filters\ExigirAjaxEnPostAttribute.cs" />
+    <Compile Include="ViewModels\RepresentacionFacturaViewModel.cs" />
     <Compile Include="Controllers\HomeController.cs" />
     <Compile Include="Controllers\MantenedorController.cs" />
     <Compile Include="Controllers\OperacionesController.cs" />
@@ -393,6 +398,7 @@
     <Content Include="favicon.ico" />
     <Content Include="Global.asax" />
     <Content Include="Content\Site.css" />
+    <Content Include="Scripts\seguridad.js" />
     <Content Include="Scripts\bootstrap.bundle.js" />
     <Content Include="Scripts\bootstrap.bundle.min.js" />
     <Content Include="Scripts\bootstrap.esm.js" />
@@ -563,6 +569,22 @@
     <Content Include="Views\Operaciones\_DetalleVentaPartial.cshtml" />
     <Content Include="Views\Home\RolesPorPermisos.cshtml" />
     <Content Include="Views\Home\AccesoDenegado.cshtml" />
+    <Content Include="Views\Facturacion\Configuracion.cshtml" />
+    <Content Include="Views\Facturacion\Homologacion.cshtml" />
+    <Content Include="Views\Facturacion\Facturas.cshtml" />
+    <Content Include="Views\Facturacion\Contingencia.cshtml" />
+    <Content Include="Views\Facturacion\Notas.cshtml" />
+    <Content Include="Views\Contabilidad\PlanCuentas.cshtml" />
+    <Content Include="Views\Contabilidad\LibroDiario.cshtml" />
+    <Content Include="Views\Contabilidad\LibroMayor.cshtml" />
+    <Content Include="Views\Contabilidad\EstadosFinancieros.cshtml" />
+    <Content Include="Views\Contabilidad\LibrosFiscales.cshtml" />
+    <Content Include="Views\Contabilidad\Liquidacion.cshtml" />
+    <Content Include="Views\Contabilidad\_Utilidades.cshtml" />
+    <Content Include="Views\Facturacion\RepresentacionNota.cshtml" />
+    <Content Include="Views\Facturacion\_ModalNotaCreditoDebito.cshtml" />
+    <Content Include="Views\Facturacion\Representacion.cshtml" />
+    <Content Include="Views\Facturacion\_ModalEmitirFactura.cshtml" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="App_Data\" />

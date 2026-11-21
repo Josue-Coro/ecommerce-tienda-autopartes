@@ -1,0 +1,579 @@
+﻿using System;
+using System.Globalization;
+using System.Linq;
+using System.Text;
+using System.Web.Mvc;
+
+using CapaEntidad;
+using CapaEntidad.Facturacion;
+using CapaNegocio.Facturacion;
+using CapaPresentacionAdmin.Filters;
+using CapaPresentacionAdmin.ViewModels;
+
+namespace CapaPresentacionAdmin.Controllers
+{
+    /// <summary>
+    /// Módulo de Facturación (modalidad Computarizada en Línea, documento sector Compra Venta).
+    /// Todas las acciones exigen sesión; la configuración y la homologación, además, rol ADMINISTRADOR o GERENTE.
+    /// </summary>
+    [ValidarSesion(Permisos = "FACTURAS_EMITIR,FACTURAS_ANULAR,FACTURACION_CONFIG")]
+    public class FacturacionController : Controller
+    {
+
+        private readonly CN_ConfiguracionFacturacion _cnConfig = new CN_ConfiguracionFacturacion();
+        private readonly CN_Factura _cnFactura = new CN_Factura();
+        private readonly CN_Contingencia _cnContingencia = new CN_Contingencia();
+        private readonly CN_NotaCreditoDebito _cnNota = new CN_NotaCreditoDebito();
+
+        private User_activo UsuarioActual
+        {
+            get { return Session["Usuario"] as User_activo; }
+        }
+
+        // =============================================================== CONFIGURACIÓN
+
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
+        public ActionResult Configuracion()
+        {
+            return View();
+        }
+
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
+        [HttpGet]
+        public JsonResult ObtenerConfiguracion()
+        {
+            string mensaje;
+            ConfiguracionFacturacion config = _cnConfig.ObtenerConfiguracion(out mensaje);
+            if (config != null)
+                config.token_delegado = string.IsNullOrEmpty(config.token_delegado) ? null : "********"; // nunca se devuelve el token
+
+            return Json(new { resultado = config != null, data = config, mensaje = mensaje }, JsonRequestBehavior.AllowGet);
+        }
+
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
+        [HttpPost]
+        public JsonResult GuardarConfiguracion(ConfiguracionFacturacion objeto)
+        {
+            string mensaje;
+            // El token solo se actualiza si se escribió uno nuevo.
+            if (objeto != null && (string.IsNullOrWhiteSpace(objeto.token_delegado) || objeto.token_delegado == "********"))
+                objeto.token_delegado = null;
+
+            bool ok = _cnConfig.GuardarConfiguracion(objeto, out mensaje);
+            return Json(new { resultado = ok, mensaje = mensaje });
+        }
+
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
+        [HttpGet]
+        public JsonResult ListarSucursales()
+        {
+            string mensaje;
+            var lista = _cnConfig.ListarSucursales(out mensaje).Select(s => new
+            {
+                s.id_tienda,
+                s.nombre_tienda,
+                s.direccion_tienda,
+                s.configurada,
+                s.codigo_sucursal,
+                s.codigo_punto_venta,
+                s.municipio,
+                s.telefono,
+                cuis = s.oCuis == null ? null : new { s.oCuis.codigo, vigencia = s.oCuis.fecha_vigencia.ToString("dd/MM/yyyy"), s.oCuis.vigente },
+                cufd = s.oCufd == null ? null : new { codigo = Abreviar(s.oCufd.codigo), vigencia = s.oCufd.fecha_vigencia.ToString("dd/MM/yyyy HH:mm"), s.oCufd.vigente }
+            }).ToList();
+            return Json(new { data = lista, mensaje = mensaje }, JsonRequestBehavior.AllowGet);
+        }
+
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
+        [HttpPost]
+        public JsonResult GuardarSucursal(SucursalFacturacion objeto)
+        {
+            string mensaje;
+            bool ok = _cnConfig.GuardarSucursal(objeto, out mensaje);
+            return Json(new { resultado = ok, mensaje = mensaje });
+        }
+
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
+        [HttpPost]
+        public JsonResult SolicitarCuis(int idTienda)
+        {
+            string mensaje;
+            bool ok = _cnConfig.SolicitarCuis(idTienda, out mensaje);
+            return Json(new { resultado = ok, mensaje = mensaje });
+        }
+
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
+        [HttpPost]
+        public JsonResult SolicitarCufd(int idTienda)
+        {
+            string mensaje;
+            bool ok = _cnConfig.SolicitarCufd(idTienda, out mensaje);
+            return Json(new { resultado = ok, mensaje = mensaje });
+        }
+
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
+        [HttpPost]
+        public JsonResult SincronizarCatalogos()
+        {
+            string mensaje;
+            bool ok = _cnConfig.SincronizarCatalogos(out mensaje);
+            return Json(new { resultado = ok, mensaje = mensaje });
+        }
+
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
+        [HttpGet]
+        public JsonResult ResumenCatalogos()
+        {
+            var lista = _cnConfig.ResumenCatalogos().Select(r => new
+            {
+                r.tipo,
+                r.cantidad,
+                ultima_sincronizacion = r.ultima_sincronizacion.HasValue ? r.ultima_sincronizacion.Value.ToString("dd/MM/yyyy HH:mm") : null
+            }).ToList();
+            return Json(new { data = lista }, JsonRequestBehavior.AllowGet);
+        }
+
+        /// <summary>Catálogos de consulta (tipos de documento, motivos de anulación...). Disponible para quien factura.</summary>
+        [HttpGet]
+        public JsonResult ListarCatalogo(string tipo)
+        {
+            if (!TipoCatalogoSin.Todos.Contains(tipo))
+                return Json(new { data = new object[0] }, JsonRequestBehavior.AllowGet);
+
+            var lista = _cnConfig.ListarCatalogo(tipo).Select(c => new { c.codigo, c.descripcion, c.codigo_actividad }).ToList();
+            return Json(new { data = lista }, JsonRequestBehavior.AllowGet);
+        }
+
+        // =============================================================== HOMOLOGACIÓN
+
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
+        public ActionResult Homologacion()
+        {
+            return View();
+        }
+
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
+        [HttpGet]
+        public JsonResult ListarHomologacion(string tipo)
+        {
+            return Json(new { data = _cnConfig.ListarHomologacion(tipo) }, JsonRequestBehavior.AllowGet);
+        }
+
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
+        [HttpPost]
+        public JsonResult GuardarHomologacion(string tipo, int idRegistro, string codigoSin)
+        {
+            string mensaje;
+            bool ok = _cnConfig.GuardarHomologacion(tipo, idRegistro, codigoSin, out mensaje);
+            return Json(new { resultado = ok, mensaje = mensaje });
+        }
+
+        // =============================================================== FACTURAS
+
+        [ValidarSesion(Permisos = "FACTURAS_EMITIR,FACTURAS_ANULAR")]
+        public ActionResult Facturas()
+        {
+            return View();
+        }
+
+        [ValidarSesion(Permisos = "FACTURAS_EMITIR,FACTURAS_ANULAR")]
+        [HttpGet]
+        public JsonResult ListarFacturas(string fechaInicio, string fechaFin, string estado)
+        {
+            var lista = _cnFactura.Listar(ParsearFecha(fechaInicio), ParsearFecha(fechaFin), estado).Select(f => new
+            {
+                f.id_factura,
+                f.id_venta,
+                f.numero_factura,
+                f.cuf,
+                fecha_emision = f.fecha_emision.ToString("dd/MM/yyyy HH:mm"),
+                f.nombre_razon_social,
+                documento = f.numero_documento + (string.IsNullOrEmpty(f.complemento) ? "" : "-" + f.complemento),
+                f.monto_total,
+                f.estado,
+                f.codigo_estado,
+                f.mensajes,
+                f.tipo_emision,
+                f.id_evento,
+                f.motivo_anulacion,
+                fecha_anulacion = f.fecha_anulacion.HasValue ? f.fecha_anulacion.Value.ToString("dd/MM/yyyy HH:mm") : null,
+                fecha_limite_anulacion = CN_Factura.FechaLimiteAnulacion(f.fecha_emision).ToString("dd/MM/yyyy"),
+                anulable = f.estado == EstadoFactura.Validada && DateTime.Now <= CN_Factura.FechaLimiteAnulacion(f.fecha_emision)
+            }).ToList();
+            return Json(new { data = lista }, JsonRequestBehavior.AllowGet);
+        }
+
+        [ValidarSesion(Permisos = "FACTURAS_EMITIR")]
+        [HttpGet]
+        public JsonResult ListarVentasPendientes(string fechaInicio, string fechaFin)
+        {
+            var lista = _cnFactura.ListarVentasPendientes(ParsearFecha(fechaInicio), ParsearFecha(fechaFin)).Select(v => new
+            {
+                v.id_venta,
+                fecha = v.fecha.ToString("dd/MM/yyyy"),
+                v.monto_total,
+                v.id_cliente,
+                v.cliente,
+                v.tipo_pago
+            }).ToList();
+            return Json(new { data = lista }, JsonRequestBehavior.AllowGet);
+        }
+
+        /// <summary>Datos para precargar el formulario de emisión de una venta.</summary>
+        [ValidarSesion(Permisos = "FACTURAS_EMITIR")]
+        [HttpGet]
+        public JsonResult DatosEmision(int idVenta)
+        {
+            string mensaje;
+            VentaParaFacturar venta = _cnFactura.ObtenerVentaParaFacturar(idVenta, out mensaje);
+            if (venta == null)
+                return Json(new { resultado = false, mensaje = mensaje }, JsonRequestBehavior.AllowGet);
+
+            DatosFiscalesCliente cliente = _cnFactura.ObtenerDatosFiscalesCliente(venta.id_cliente);
+            return Json(new
+            {
+                resultado = true,
+                venta = new
+                {
+                    venta.id_venta,
+                    fecha = venta.fecha.ToString("dd/MM/yyyy"),
+                    venta.monto_total,
+                    venta.tipo_pago,
+                    venta.codigo_metodo_pago,
+                    es_tarjeta = venta.codigo_metodo_pago == CN_Factura.MetodoPagoTarjeta,
+                    venta.estado_factura_vigente,
+                    lineas = venta.oLineas.Count
+                },
+                cliente = cliente
+            }, JsonRequestBehavior.AllowGet);
+        }
+
+        [ValidarSesion(Permisos = "FACTURAS_EMITIR")]
+        [HttpPost]
+        public JsonResult EmitirFactura(SolicitudEmisionFactura objeto)
+        {
+            User_activo usuario = UsuarioActual;
+            ResultadoEmision r = _cnFactura.Emitir(objeto, usuario.id_tienda_user, NombreUsuarioFactura(usuario));
+            return Json(new
+            {
+                resultado = r.exito,
+                r.id_factura,
+                r.numero_factura,
+                r.estado,
+                mensaje = r.mensaje,
+                r.requiere_excepcion_nit
+            });
+        }
+
+        [ValidarSesion(Permisos = "FACTURAS_ANULAR")]
+        [HttpPost]
+        public JsonResult AnularFactura(int idFactura, int codigoMotivo)
+        {
+            string mensaje;
+            bool ok = _cnFactura.Anular(idFactura, codigoMotivo, out mensaje);
+            return Json(new { resultado = ok, mensaje = mensaje });
+        }
+
+        /// <summary>Representación gráfica imprimible (formato "rollo" de 80 mm o "carta").</summary>
+        [ValidarSesion(Permisos = "FACTURAS_EMITIR,FACTURAS_ANULAR")]
+        [HttpGet]
+        public ActionResult Representacion(int id, string formato = "carta")
+        {
+            string mensaje;
+            Factura f = _cnFactura.Obtener(id, out mensaje);
+            if (f == null)
+                return HttpNotFound(mensaje);
+
+            ConfiguracionFacturacion config = _cnConfig.ObtenerConfiguracion(out mensaje);
+            int ambiente = config != null ? config.codigo_ambiente : 2;
+            bool esRollo = formato == "rollo";
+
+            RepresentacionFacturaViewModel vm = new RepresentacionFacturaViewModel
+            {
+                oFactura = f,
+                formato = esRollo ? "rollo" : "carta",
+                url_qr = CN_Factura.UrlQr(f, ambiente, esRollo ? 1 : 2),
+                monto_literal = NumeroALetras.Convertir(f.monto_total),
+                descripcion_metodo_pago = DescripcionCatalogo(TipoCatalogoSin.MetodoPago, f.codigo_metodo_pago),
+                descripcion_tipo_documento = DescripcionCatalogo(TipoCatalogoSin.TipoDocumentoIdentidad, f.codigo_tipo_documento),
+                leyenda_principal = CN_Factura.LeyendaPrincipal,
+                leyenda_modalidad = f.tipo_emision == CN_Factura.EmisionEnLinea ? CN_Factura.LeyendaEnLinea : CN_Factura.LeyendaFueraDeLinea,
+                es_simulado = config == null || config.modo_simulado
+            };
+            return View(vm);
+        }
+
+        /// <summary>Descarga el XML de la factura tal como se envió al SIN.</summary>
+        [ValidarSesion(Permisos = "FACTURAS_EMITIR,FACTURAS_ANULAR")]
+        [HttpGet]
+        public ActionResult DescargarXml(int id)
+        {
+            string mensaje;
+            Factura f = _cnFactura.Obtener(id, out mensaje);
+            if (f == null)
+                return HttpNotFound(mensaje);
+
+            byte[] contenido = new UTF8Encoding(false).GetBytes(f.archivo_xml);
+            return File(contenido, "application/xml", "factura_" + f.nit_emisor + "_" + f.numero_factura + ".xml");
+        }
+
+        // =============================================================== CONTINGENCIA
+
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
+        public ActionResult Contingencia()
+        {
+            return View();
+        }
+
+        /// <summary>Estado de cada tienda configurada (en línea / fuera de línea) y de la simulación de corte.</summary>
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
+        [HttpGet]
+        public JsonResult EstadoContingencia()
+        {
+            string mensaje;
+            ConfiguracionFacturacion config = _cnConfig.ObtenerConfiguracion(out mensaje);
+            var tiendas = _cnConfig.ListarSucursales(out mensaje).Where(s => s.configurada).Select(s =>
+            {
+                EventoSignificativo e = _cnContingencia.ObtenerEventoAbierto(s.id_tienda);
+                return new
+                {
+                    s.id_tienda,
+                    s.nombre_tienda,
+                    s.codigo_sucursal,
+                    s.codigo_punto_venta,
+                    fuera_de_linea = e != null,
+                    evento = e == null ? null : new
+                    {
+                        e.id_evento,
+                        e.codigo_evento,
+                        e.descripcion_evento,
+                        e.automatico,
+                        desde = e.fecha_inicio.ToString("dd/MM/yyyy HH:mm"),
+                        e.cantidad_facturas
+                    }
+                };
+            }).ToList();
+
+            return Json(new
+            {
+                modo_simulado = config != null && config.modo_simulado,
+                simular_sin_conexion = config != null && config.simular_sin_conexion,
+                tiendas = tiendas
+            }, JsonRequestBehavior.AllowGet);
+        }
+
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
+        [HttpGet]
+        public JsonResult ListarEventos()
+        {
+            var lista = _cnContingencia.ListarEventos(null).Select(e => new
+            {
+                e.id_evento,
+                e.nombre_tienda,
+                e.codigo_evento,
+                e.descripcion_evento,
+                e.descripcion,
+                e.automatico,
+                fecha_inicio = e.fecha_inicio.ToString("dd/MM/yyyy HH:mm"),
+                fecha_fin = e.fecha_fin.HasValue ? e.fecha_fin.Value.ToString("dd/MM/yyyy HH:mm") : null,
+                limite_envio = CN_Contingencia.FechaLimiteEnvio(e).HasValue ? CN_Contingencia.FechaLimiteEnvio(e).Value.ToString("dd/MM/yyyy HH:mm") : null,
+                e.estado,
+                e.codigo_recepcion_evento,
+                e.mensajes,
+                e.cantidad_facturas,
+                e.facturas_pendientes
+            }).ToList();
+            return Json(new { data = lista }, JsonRequestBehavior.AllowGet);
+        }
+
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
+        [HttpPost]
+        public JsonResult IniciarContingencia(int idTienda, int codigoEvento, string descripcion)
+        {
+            string mensaje;
+            EventoSignificativo e = _cnContingencia.Iniciar(idTienda, codigoEvento, descripcion, out mensaje);
+            return Json(new { resultado = e != null, mensaje = mensaje });
+        }
+
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
+        [HttpPost]
+        public JsonResult FinalizarContingencia(int idEvento)
+        {
+            string mensaje;
+            bool ok = _cnContingencia.FinalizarYEnviar(idEvento, out mensaje);
+            return Json(new { resultado = ok, mensaje = mensaje });
+        }
+
+        [ValidarSesion(Permisos = "FACTURACION_CONFIG")]
+        [HttpPost]
+        public JsonResult SimularSinConexion(bool valor)
+        {
+            string mensaje;
+            bool ok = _cnContingencia.GuardarSimulacionSinConexion(valor, out mensaje);
+            return Json(new { resultado = ok, mensaje = mensaje });
+        }
+
+        // =============================================================== NOTAS CRÉDITO-DÉBITO
+
+        [ValidarSesion(Permisos = "FACTURAS_EMITIR,FACTURAS_ANULAR")]
+        public ActionResult Notas()
+        {
+            return View();
+        }
+
+        [ValidarSesion(Permisos = "FACTURAS_EMITIR,FACTURAS_ANULAR")]
+        [HttpGet]
+        public JsonResult ListarNotas(string fechaInicio, string fechaFin)
+        {
+            var lista = _cnNota.Listar(ParsearFecha(fechaInicio), ParsearFecha(fechaFin), null).Select(n => new
+            {
+                n.id_nota,
+                n.numero_nota,
+                n.id_factura,
+                numero_factura = n.oFactura.numero_factura,
+                cliente = n.oFactura.nombre_razon_social,
+                documento = n.oFactura.numero_documento,
+                fecha_emision = n.fecha_emision.ToString("dd/MM/yyyy HH:mm"),
+                n.monto_total_devuelto,
+                n.monto_efectivo_credito_debito,
+                n.motivo,
+                n.reingreso_stock,
+                n.estado,
+                n.mensajes,
+                n.motivo_anulacion,
+                fecha_limite_anulacion = CN_Factura.FechaLimiteAnulacion(n.fecha_emision).ToString("dd/MM/yyyy"),
+                anulable = n.estado == EstadoFactura.Validada && DateTime.Now <= CN_Factura.FechaLimiteAnulacion(n.fecha_emision)
+            }).ToList();
+            return Json(new { data = lista }, JsonRequestBehavior.AllowGet);
+        }
+
+        /// <summary>Datos de la factura para armar la nota: líneas con lo facturado, lo ya devuelto y lo disponible.</summary>
+        [ValidarSesion(Permisos = "FACTURAS_ANULAR")]
+        [HttpGet]
+        public JsonResult DatosNota(int idFactura)
+        {
+            string mensaje;
+            Factura f = _cnFactura.Obtener(idFactura, out mensaje);
+            if (f == null)
+                return Json(new { resultado = false, mensaje = mensaje }, JsonRequestBehavior.AllowGet);
+            if (f.estado != EstadoFactura.Validada)
+                return Json(new { resultado = false, mensaje = "Solo se emiten notas sobre facturas VALIDADAS." }, JsonRequestBehavior.AllowGet);
+
+            var lineas = _cnNota.ObtenerLineasDevolvibles(idFactura).Select(l => new
+            {
+                l.oDetalle.id_factura_detalle,
+                l.oDetalle.codigo_producto,
+                l.oDetalle.descripcion,
+                l.oDetalle.cantidad,
+                l.oDetalle.precio_unitario,
+                l.oDetalle.sub_total,
+                es_producto = l.oDetalle.codigo_producto != null && l.oDetalle.codigo_producto.StartsWith("P-"),
+                l.cantidad_devuelta,
+                l.cantidad_disponible
+            }).ToList();
+
+            return Json(new
+            {
+                resultado = true,
+                factura = new
+                {
+                    f.id_factura,
+                    f.numero_factura,
+                    fecha = f.fecha_emision.ToString("dd/MM/yyyy"),
+                    f.nombre_razon_social,
+                    f.monto_total
+                },
+                lineas = lineas
+            }, JsonRequestBehavior.AllowGet);
+        }
+
+        [ValidarSesion(Permisos = "FACTURAS_ANULAR")]
+        [HttpPost]
+        public JsonResult EmitirNota(SolicitudEmisionNota objeto)
+        {
+            User_activo usuario = UsuarioActual;
+            ResultadoNota r = _cnNota.Emitir(objeto, usuario.id_tienda_user, NombreUsuarioFactura(usuario));
+            return Json(new { resultado = r.exito, r.id_nota, r.numero_nota, r.estado, mensaje = r.mensaje });
+        }
+
+        [ValidarSesion(Permisos = "FACTURAS_ANULAR")]
+        [HttpPost]
+        public JsonResult AnularNota(int idNota, int codigoMotivo)
+        {
+            string mensaje;
+            bool ok = _cnNota.Anular(idNota, codigoMotivo, out mensaje);
+            return Json(new { resultado = ok, mensaje = mensaje });
+        }
+
+        [ValidarSesion(Permisos = "FACTURAS_EMITIR,FACTURAS_ANULAR")]
+        [HttpGet]
+        public ActionResult RepresentacionNota(int id)
+        {
+            string mensaje;
+            NotaCreditoDebito n = _cnNota.Obtener(id, out mensaje);
+            if (n == null)
+                return HttpNotFound(mensaje);
+
+            ConfiguracionFacturacion config = _cnConfig.ObtenerConfiguracion(out mensaje);
+            int ambiente = config != null ? config.codigo_ambiente : 2;
+            // El QR de la nota usa el NIT del emisor, el CUF y el número de la propia nota.
+            Factura paraQr = new Factura { nit_emisor = n.oFactura.nit_emisor, cuf = n.cuf, numero_factura = n.numero_nota };
+
+            ViewBag.UrlQr = CN_Factura.UrlQr(paraQr, ambiente, 2);
+            ViewBag.MontoLiteral = NumeroALetras.Convertir(n.monto_total_devuelto);
+            ViewBag.LeyendaPrincipal = CN_Factura.LeyendaPrincipal;
+            ViewBag.LeyendaModalidad = CN_Factura.LeyendaEnLinea;
+            ViewBag.EsSimulado = config == null || config.modo_simulado;
+            return View(n);
+        }
+
+        [ValidarSesion(Permisos = "FACTURAS_EMITIR,FACTURAS_ANULAR")]
+        [HttpGet]
+        public ActionResult DescargarXmlNota(int id)
+        {
+            string mensaje;
+            NotaCreditoDebito n = _cnNota.Obtener(id, out mensaje);
+            if (n == null)
+                return HttpNotFound(mensaje);
+
+            byte[] contenido = new UTF8Encoding(false).GetBytes(n.archivo_xml);
+            return File(contenido, "application/xml", "nota_" + n.oFactura.nit_emisor + "_" + n.numero_nota + ".xml");
+        }
+
+        // =============================================================== utilidades
+
+        private string DescripcionCatalogo(string tipo, int codigo)
+        {
+            string c = codigo.ToString(CultureInfo.InvariantCulture);
+            CatalogoSin item = _cnConfig.ListarCatalogo(tipo).FirstOrDefault(x => x.codigo == c);
+            return item != null ? item.descripcion : c;
+        }
+
+        /// <summary>Usuario descriptivo para el XML (ej.: "JPEREZ").</summary>
+        private static string NombreUsuarioFactura(User_activo u)
+        {
+            string nombre = (u.nombre ?? "").Trim();
+            string apellido = (u.apellidos ?? "").Trim().Split(' ').FirstOrDefault() ?? "";
+            string valor = (nombre.Length > 0 ? nombre.Substring(0, 1) : "") + apellido;
+            if (string.IsNullOrWhiteSpace(valor))
+                valor = (u.correo ?? "USUARIO").Split('@')[0];
+            valor = valor.ToUpperInvariant();
+            return valor.Length > 100 ? valor.Substring(0, 100) : valor;
+        }
+
+        private static DateTime? ParsearFecha(string valor)
+        {
+            DateTime fecha;
+            if (!string.IsNullOrWhiteSpace(valor)
+                && DateTime.TryParseExact(valor, new[] { "yyyy-MM-dd", "dd/MM/yyyy" }, CultureInfo.InvariantCulture, DateTimeStyles.None, out fecha))
+                return fecha;
+            return null;
+        }
+
+        private static string Abreviar(string codigo)
+        {
+            if (string.IsNullOrEmpty(codigo) || codigo.Length <= 16) return codigo;
+            return codigo.Substring(0, 12) + "…";
+        }
+    }
+}

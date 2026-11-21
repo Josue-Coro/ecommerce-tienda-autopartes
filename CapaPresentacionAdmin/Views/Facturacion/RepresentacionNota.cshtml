@@ -1,0 +1,153 @@
+@model CapaEntidad.Facturacion.NotaCreditoDebito
+@{
+    Layout = null;
+    var n = Model;
+    var f = n.oFactura;
+    string sucursal = n.codigo_sucursal == 0 ? "CASA MATRIZ" : "SUCURSAL N° " + n.codigo_sucursal;
+    Func<decimal, string> bs = v => v.ToString("N2", System.Globalization.CultureInfo.GetCultureInfo("es-BO"));
+    var originales = n.oDetalle.Where(d => d.codigo_detalle_transaccion == 1).ToList();
+    var devueltos = n.oDetalle.Where(d => d.codigo_detalle_transaccion == 2).ToList();
+}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nota crédito-débito @n.numero_nota - @f.razon_social_emisor</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: Arial, Helvetica, sans-serif; color: #000; background: #e9ecef; margin: 0; padding: 16px; font-size: 11px; }
+        .hoja { background: #fff; margin: 0 auto; padding: 24px; width: 216mm; min-height: 279mm; position: relative; overflow: hidden; }
+        .acciones { text-align: center; margin-bottom: 12px; }
+        .acciones button, .acciones a { font-size: 13px; padding: 6px 14px; margin: 0 4px; cursor: pointer; }
+        .marca-agua { position: absolute; top: 40%; left: -10%; width: 120%; text-align: center; transform: rotate(-25deg);
+                      font-size: 46px; font-weight: bold; color: rgba(200, 0, 0, .12); pointer-events: none; }
+        .centro { text-align: center; } .derecha { text-align: right; } .negrita { font-weight: bold; }
+        .titulo { font-size: 16px; font-weight: bold; margin: 10px 0 0; }
+        .encabezado { display: flex; justify-content: space-between; gap: 16px; }
+        .caja { border: 1px solid #000; padding: 6px 10px; min-width: 260px; }
+        .caja td { padding: 1px 4px; vertical-align: top; }
+        .cuf { word-break: break-all; max-width: 190px; }
+        table.datos { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        h4 { margin: 14px 0 4px; font-size: 12px; }
+        table.detalle { width: 100%; border-collapse: collapse; }
+        table.detalle th, table.detalle td { border: 1px solid #000; padding: 3px 5px; }
+        table.detalle th { background: #f1f1f1; }
+        .totales { width: 50%; margin-left: auto; margin-top: 8px; border-collapse: collapse; }
+        .totales td { padding: 2px 5px; }
+        .leyendas { margin-top: 14px; font-size: 10px; } .leyendas p { margin: 4px 0; }
+        .pie { display: flex; align-items: center; gap: 16px; margin-top: 12px; }
+        .sello { font-size: 18px; font-weight: bold; border: 3px solid; display: inline-block; padding: 2px 12px; margin-top: 6px; }
+        @@media print { body { background: #fff; padding: 0; } .acciones { display: none; } .hoja { margin: 0; padding: 0; } @@page { size: letter; margin: 12mm; } }
+    </style>
+</head>
+<body>
+    <div class="acciones">
+        <button type="button" onclick="window.print()">🖨 Imprimir</button>
+        <a href="@Url.Action("DescargarXmlNota", "Facturacion", new { id = n.id_nota })">Descargar XML</a>
+        <a href="@Url.Action("Representacion", "Facturacion", new { id = f.id_factura })" target="_blank">Ver factura original</a>
+    </div>
+
+    <div class="hoja">
+        @if ((bool)ViewBag.EsSimulado)
+        {
+            <div class="marca-agua">SIN VALIDEZ TRIBUTARIA<br />MODO SIMULADO</div>
+        }
+
+        <div class="encabezado">
+            <div>
+                <div class="negrita" style="font-size:13px">@f.razon_social_emisor</div>
+                <div>@sucursal</div>
+                <div>No. Punto de Venta @n.codigo_punto_venta</div>
+                <div>@n.direccion</div>
+                @if (!string.IsNullOrEmpty(n.telefono)) { <div>Teléfono: @n.telefono</div> }
+                <div>@n.municipio</div>
+            </div>
+            <div class="caja">
+                <table>
+                    <tr><td class="negrita">NIT</td><td>@f.nit_emisor</td></tr>
+                    <tr><td class="negrita">NOTA N°</td><td>@n.numero_nota</td></tr>
+                    <tr><td class="negrita">CÓD. AUTORIZACIÓN</td><td class="cuf">@n.cuf</td></tr>
+                </table>
+            </div>
+        </div>
+
+        <div class="centro">
+            <div class="titulo">NOTA CRÉDITO - DÉBITO</div>
+        </div>
+
+        <table class="datos">
+            <tr>
+                <td class="negrita" style="width:22%">Fecha:</td><td style="width:38%">@n.fecha_emision.ToString("dd/MM/yyyy hh:mm tt")</td>
+                <td class="negrita" style="width:18%">NIT/CI/CEX:</td><td>@f.numero_documento@(string.IsNullOrEmpty(f.complemento) ? "" : "-" + f.complemento)</td>
+            </tr>
+            <tr>
+                <td class="negrita">Nombre/Razón Social:</td><td>@f.nombre_razon_social</td>
+                <td class="negrita">Cod. Cliente:</td><td>@f.codigo_cliente</td>
+            </tr>
+            <tr>
+                <td class="negrita">N° Factura:</td><td>@f.numero_factura</td>
+                <td class="negrita">Fecha factura:</td><td>@f.fecha_emision.ToString("dd/MM/yyyy hh:mm tt")</td>
+            </tr>
+            <tr>
+                <td class="negrita">Cód. autorización factura:</td><td colspan="3" class="cuf" style="max-width:none">@f.cuf</td>
+            </tr>
+        </table>
+
+        <h4>DATOS DE LA TRANSACCIÓN ORIGINAL</h4>
+        <table class="detalle">
+            <thead><tr><th>CÓDIGO</th><th>DESCRIPCIÓN</th><th>UNIDAD DE MEDIDA</th><th>CANTIDAD</th><th>PRECIO UNITARIO</th><th>DESCUENTO</th><th>SUBTOTAL</th></tr></thead>
+            <tbody>
+                @foreach (var d in originales)
+                {
+                    <tr><td>@d.codigo_producto</td><td>@d.descripcion</td><td>@(d.descripcion_unidad_medida ?? d.unidad_medida.ToString())</td>
+                        <td class="derecha">@bs(d.cantidad)</td><td class="derecha">@bs(d.precio_unitario)</td><td class="derecha">@bs(d.monto_descuento)</td><td class="derecha">@bs(d.sub_total)</td></tr>
+                }
+            </tbody>
+        </table>
+        <table class="totales"><tr class="negrita"><td>MONTO TOTAL ORIGINAL Bs</td><td class="derecha">@bs(n.monto_total_original)</td></tr></table>
+
+        <h4>DETALLE DE LA DEVOLUCIÓN O RESCISIÓN DE SERVICIO</h4>
+        <table class="detalle">
+            <thead><tr><th>CÓDIGO</th><th>DESCRIPCIÓN</th><th>UNIDAD DE MEDIDA</th><th>CANTIDAD</th><th>PRECIO UNITARIO</th><th>DESCUENTO</th><th>SUBTOTAL</th></tr></thead>
+            <tbody>
+                @foreach (var d in devueltos)
+                {
+                    <tr><td>@d.codigo_producto</td><td>@d.descripcion</td><td>@(d.descripcion_unidad_medida ?? d.unidad_medida.ToString())</td>
+                        <td class="derecha">@bs(d.cantidad)</td><td class="derecha">@bs(d.precio_unitario)</td><td class="derecha">@bs(d.monto_descuento)</td><td class="derecha">@bs(d.sub_total)</td></tr>
+                }
+            </tbody>
+        </table>
+        <table class="totales">
+            <tr class="negrita"><td>MONTO TOTAL DEVUELTO Bs</td><td class="derecha">@bs(n.monto_total_devuelto)</td></tr>
+            <tr><td>MONTO DESCUENTO CRÉDITO-DÉBITO Bs</td><td class="derecha">0,00</td></tr>
+            <tr class="negrita"><td>MONTO EFECTIVO DEL CRÉDITO O DÉBITO (13%) Bs</td><td class="derecha">@bs(n.monto_efectivo_credito_debito)</td></tr>
+        </table>
+
+        <p><b>Son:</b> @ViewBag.MontoLiteral</p>
+
+        @if (n.estado == CapaEntidad.Facturacion.EstadoFactura.Anulada)
+        {
+            <div class="centro"><span class="sello" style="color:#c00">ANULADA</span></div>
+        }
+        else if (n.estado != CapaEntidad.Facturacion.EstadoFactura.Validada)
+        {
+            <div class="centro"><span class="sello" style="color:#b8860b">@n.estado</span></div>
+        }
+
+        <div class="pie">
+            <div class="leyendas" style="flex:1">
+                <p class="centro negrita">@ViewBag.LeyendaPrincipal</p>
+                <p class="centro">@n.leyenda</p>
+                <p class="centro">@ViewBag.LeyendaModalidad</p>
+            </div>
+            <div id="qr"></div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script>
+        new QRCode(document.getElementById("qr"), { text: @Html.Raw(Json.Encode((string)ViewBag.UrlQr)), width: 130, height: 130, correctLevel: QRCode.CorrectLevel.M });
+    </script>
+</body>
+</html>

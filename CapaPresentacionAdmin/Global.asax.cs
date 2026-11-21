@@ -1,4 +1,4 @@
-using QuestPDF.Infrastructure;
+﻿using QuestPDF.Infrastructure;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -15,6 +15,8 @@ namespace CapaPresentacionAdmin
     {
         protected void Application_Start()
         {
+            // No anunciar la versión de ASP.NET MVC en las respuestas.
+            MvcHandler.DisableMvcResponseHeader = true;
             AreaRegistration.RegisterAllAreas();
             FilterConfig.RegisterGlobalFilters(GlobalFilters.Filters);
             RouteConfig.RegisterRoutes(RouteTable.Routes);

@@ -1,0 +1,195 @@
+@{
+    ViewBag.Title = "Libros de compras y ventas";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+@Html.Partial("~/Views/Contabilidad/_Utilidades.cshtml")
+
+<ol class="breadcrumb mb-4 mt-4">
+    <li class="breadcrumb-item"><a href="@Url.Action("Index","Home")">Resumen</a></li>
+    <li class="breadcrumb-item">Contabilidad</li>
+    <li class="breadcrumb-item active">Libros de compras y ventas</li>
+</ol>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-sm-3"><label class="form-label" for="cboMes">Mes</label><select class="form-select" id="cboMes"></select></div>
+            <div class="col-sm-2"><label class="form-label" for="cboGestion">Gestión</label><select class="form-select" id="cboGestion"></select></div>
+            <div class="col-sm-3"><button type="button" class="btn btn-primary w-100" id="btnBuscar"><i class="fas fa-search me-1"></i>Ver libros</button></div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white">
+        <ul class="nav nav-tabs card-header-tabs" role="tablist">
+            <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabVentas" type="button"><i class="fas fa-file-invoice-dollar me-1"></i>Libro de ventas</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabCompras" type="button"><i class="fas fa-receipt me-1"></i>Libro de compras</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabFacturasCompra" type="button"><i class="fas fa-truck me-1"></i>Facturas de proveedores</button></li>
+        </ul>
+    </div>
+    <div class="card-body tab-content">
+        <div class="tab-pane fade show active" id="tabVentas">
+            <div class="d-flex justify-content-between mb-2">
+                <span class="small text-muted">Estructura "Ventas Estándar" del Registro de Compras y Ventas. Estado: V válida, A anulada, C contingencia.</span>
+                <a class="btn btn-outline-success btn-sm" id="lnkVentas"><i class="fas fa-file-csv me-1"></i>Descargar CSV (RCV)</a>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered small" id="tablaVentas">
+                    <thead class="table-light"><tr><th>N°</th><th>Fecha</th><th>N° factura</th><th>Cód. autorización</th><th>NIT/CI</th><th>Razón social</th><th class="text-end">Importe total</th><th class="text-end">Descuentos</th><th class="text-end">Base DF</th><th class="text-end">Débito fiscal</th><th>Estado</th></tr></thead>
+                    <tbody></tbody>
+                    <tfoot class="fw-bold"></tfoot>
+                </table>
+            </div>
+        </div>
+        <div class="tab-pane fade" id="tabCompras">
+            <div class="d-flex justify-content-between mb-2">
+                <span class="small text-muted">Facturas de proveedores registradas, por fecha de factura. Solo el tipo de compra 1 genera crédito fiscal en la liquidación.</span>
+                <a class="btn btn-outline-success btn-sm" id="lnkCompras"><i class="fas fa-file-csv me-1"></i>Descargar CSV (RCV)</a>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered small" id="tablaCompras">
+                    <thead class="table-light"><tr><th>N°</th><th>NIT proveedor</th><th>Razón social</th><th>Cód. autorización</th><th>N° factura</th><th>Fecha</th><th class="text-end">Importe total</th><th class="text-end">No sujeto</th><th class="text-end">Descuentos</th><th class="text-end">Base CF</th><th class="text-end">Crédito fiscal</th><th>Tipo</th></tr></thead>
+                    <tbody></tbody>
+                    <tfoot class="fw-bold"></tfoot>
+                </table>
+            </div>
+        </div>
+        <div class="tab-pane fade" id="tabFacturasCompra">
+            <p class="small text-muted">Compras registradas en el mes. Ingrese los datos de la factura del proveedor para incluirla en el Libro de Compras y obtener el crédito fiscal.
+                Si la compra ya estaba contabilizada, su asiento se regenera al volver a contabilizar.</p>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered small" id="tablaFacturasCompra">
+                    <thead class="table-light"><tr><th>Compra</th><th>Fecha</th><th>Proveedor</th><th class="text-end">Monto</th><th>Factura del proveedor</th><th></th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalCompra" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title">Factura del proveedor - compra <span id="coTitulo"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="coId" value="0" />
+                <div class="row g-2">
+                    <div class="col-md-4"><label class="form-label" for="coNit">NIT del proveedor</label><input type="text" class="form-control" id="coNit" maxlength="12"></div>
+                    <div class="col-md-8"><label class="form-label" for="coRazon">Razón social</label><input type="text" class="form-control" id="coRazon" maxlength="240"></div>
+                    <div class="col-md-8"><label class="form-label" for="coAutorizacion">Código de autorización (CUF)</label><input type="text" class="form-control" id="coAutorizacion" maxlength="100"></div>
+                    <div class="col-md-4"><label class="form-label" for="coNumero">N° de factura</label><input type="number" min="1" class="form-control" id="coNumero"></div>
+                    <div class="col-md-4"><label class="form-label" for="coFecha">Fecha de la factura</label><input type="date" class="form-control" id="coFecha"></div>
+                    <div class="col-md-4"><label class="form-label" for="coTotal">Importe total</label><input type="number" min="0" step="0.01" class="form-control" id="coTotal" oninput="calcularCf()"></div>
+                    <div class="col-md-4"><label class="form-label" for="coNoSujeto">No sujeto a CF (ICE, tasas, exentos)</label><input type="number" min="0" step="0.01" class="form-control" id="coNoSujeto" value="0" oninput="calcularCf()"></div>
+                    <div class="col-md-4"><label class="form-label" for="coDescuentos">Descuentos</label><input type="number" min="0" step="0.01" class="form-control" id="coDescuentos" value="0" oninput="calcularCf()"></div>
+                    <div class="col-md-8">
+                        <label class="form-label" for="coTipo">Tipo de compra</label>
+                        <select class="form-select" id="coTipo" onchange="calcularCf()">
+                            <option value="1">1 - Mercado interno, destino a actividades gravadas</option>
+                            <option value="2">2 - Mercado interno, destino a actividades no gravadas</option>
+                            <option value="3">3 - Sujetas a proporcionalidad</option>
+                            <option value="4">4 - Para exportaciones</option>
+                            <option value="5">5 - Mercado interno y exportaciones</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4"><label class="form-label" for="coControl">Código de control (opcional)</label><input type="text" class="form-control" id="coControl" maxlength="17"></div>
+                </div>
+                <div class="alert alert-info small mt-3 mb-0" id="coCf"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="guardarCompra()">Guardar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section scripts {
+    <script>
+        var comprasMes = [];
+        function periodo() { return { gestion: parseInt($("#cboGestion").val()), mes: parseInt($("#cboMes").val()) }; }
+
+        function cargar() {
+            var p = periodo();
+            $("#lnkVentas").attr("href", ctUrl("DescargarLibroVentas") + "?gestion=" + p.gestion + "&mes=" + p.mes);
+            $("#lnkCompras").attr("href", ctUrl("DescargarLibroCompras") + "?gestion=" + p.gestion + "&mes=" + p.mes);
+
+            $.get(ctUrl("ObtenerLibrosFiscales"), p, function (res) {
+                var colores = { V: "bg-success", A: "bg-danger", C: "bg-warning text-dark" };
+                $("#tablaVentas tbody").html(res.ventas.length === 0 ? '<tr><td colspan="11" class="text-center text-muted">Sin facturas en el mes.</td></tr>' : $.map(res.ventas, function (f) {
+                    return "<tr><td>" + f.numero + "</td><td>" + f.fecha + "</td><td>" + f.numero_factura + '</td><td class="text-break" style="max-width:180px">' + ctEscapar(f.codigo_autorizacion)
+                        + "</td><td>" + ctEscapar(f.nit_ci_cliente + (f.complemento ? "-" + f.complemento : "")) + "</td><td>" + ctEscapar(f.razon_social)
+                        + '</td><td class="text-end">' + ctMonto(f.importe_total) + '</td><td class="text-end">' + ctMonto(f.descuentos) + '</td><td class="text-end">' + ctMonto(f.base_debito_fiscal)
+                        + '</td><td class="text-end">' + ctMonto(f.debito_fiscal) + '</td><td><span class="badge ' + colores[f.estado] + '">' + f.estado + "</span></td></tr>";
+                }).join(""));
+                $("#tablaVentas tfoot").html('<tr><td colspan="6" class="text-end">Totales</td><td class="text-end">' + ctMonto(res.total_ventas.importe) + '</td><td></td><td class="text-end">'
+                    + ctMonto(res.total_ventas.base_df) + '</td><td class="text-end">' + ctMonto(res.total_ventas.df) + "</td><td></td></tr>");
+
+                $("#tablaCompras tbody").html(res.compras.length === 0 ? '<tr><td colspan="12" class="text-center text-muted">Sin facturas de compra registradas en el mes.</td></tr>' : $.map(res.compras, function (f) {
+                    return "<tr><td>" + f.numero + "</td><td>" + f.nit_proveedor + "</td><td>" + ctEscapar(f.razon_social) + '</td><td class="text-break" style="max-width:180px">' + ctEscapar(f.codigo_autorizacion)
+                        + "</td><td>" + f.numero_factura + "</td><td>" + f.fecha + '</td><td class="text-end">' + ctMonto(f.importe_total) + '</td><td class="text-end">' + ctMonto(f.importe_no_sujeto)
+                        + '</td><td class="text-end">' + ctMonto(f.descuentos) + '</td><td class="text-end">' + ctMonto(f.base_credito_fiscal) + '</td><td class="text-end">' + ctMonto(f.credito_fiscal)
+                        + "</td><td>" + f.tipo_compra + "</td></tr>";
+                }).join(""));
+                $("#tablaCompras tfoot").html('<tr><td colspan="6" class="text-end">Totales</td><td class="text-end">' + ctMonto(res.total_compras.importe) + '</td><td colspan="2"></td><td class="text-end">'
+                    + ctMonto(res.total_compras.base_cf) + '</td><td class="text-end">' + ctMonto(res.total_compras.cf) + "</td><td></td></tr>");
+            });
+
+            $.get(ctUrl("ListarComprasFiscales"), p, function (res) {
+                comprasMes = res.data;
+                $("#tablaFacturasCompra tbody").html(comprasMes.length === 0 ? '<tr><td colspan="6" class="text-center text-muted">Sin compras en el mes.</td></tr>' : $.map(comprasMes, function (c) {
+                    return "<tr><td>#" + c.id_compra + "</td><td>" + c.fecha_compra + "</td><td>" + ctEscapar(c.proveedor) + '</td><td class="text-end">' + ctMonto(c.monto_compra) + "</td><td>"
+                        + (c.registrada ? '<span class="badge bg-success">N° ' + c.numero_factura + "</span> " + ctEscapar(c.razon_social) : '<span class="badge bg-warning text-dark">sin factura registrada</span>')
+                        + (c.contabilizada ? ' <span class="badge bg-light text-dark">contabilizada</span>' : "")
+                        + '</td><td><button type="button" class="btn btn-outline-primary btn-sm" onclick="abrirCompra(' + c.id_compra + ')">' + (c.registrada ? "Editar" : "Registrar factura") + "</button></td></tr>";
+                }).join(""));
+            });
+        }
+
+        function calcularCf() {
+            var base = (parseFloat($("#coTotal").val()) || 0) - (parseFloat($("#coNoSujeto").val()) || 0) - (parseFloat($("#coDescuentos").val()) || 0);
+            var cf = $("#coTipo").val() === "1" ? Math.round(base * 13) / 100 : 0;
+            $("#coCf").html("Base para crédito fiscal: <b>Bs " + ctMonto(base) + "</b> · Crédito fiscal (13%): <b>Bs " + ctMonto(cf) + "</b>"
+                + ($("#coTipo").val() !== "1" ? " (solo el tipo 1 se computa en la liquidación)" : ""));
+        }
+
+        function abrirCompra(id) {
+            var c = comprasMes.find(function (x) { return x.id_compra === id; });
+            $("#coId").val(id);
+            $("#coTitulo").text("#" + id + " - " + c.proveedor);
+            $("#coNit").val(c.registrada ? c.nit_proveedor : (c.nit_proveedor_registrado || ""));
+            $("#coRazon").val(c.registrada ? c.razon_social : c.proveedor);
+            $("#coAutorizacion").val(c.codigo_autorizacion || "");
+            $("#coNumero").val(c.numero_factura || "");
+            $("#coFecha").val(c.fecha_factura || c.fecha_compra.split("/").reverse().join("-"));
+            $("#coTotal").val(c.registrada ? c.importe_total : c.monto_compra);
+            $("#coNoSujeto").val(c.importe_no_sujeto || 0);
+            $("#coDescuentos").val(c.descuentos || 0);
+            $("#coTipo").val(c.tipo_compra || 1);
+            $("#coControl").val(c.codigo_control || "");
+            calcularCf();
+            $("#modalCompra").modal("show");
+        }
+
+        function guardarCompra() {
+            ctPost("GuardarCompraFiscal", {
+                objeto: {
+                    id_compra: parseInt($("#coId").val()), nit_proveedor: $.trim($("#coNit").val()) || 0, razon_social: $.trim($("#coRazon").val()),
+                    codigo_autorizacion: $.trim($("#coAutorizacion").val()), numero_factura: $("#coNumero").val() || 0, fecha_factura: $("#coFecha").val() || null,
+                    importe_total: parseFloat($("#coTotal").val()) || 0, importe_no_sujeto: parseFloat($("#coNoSujeto").val()) || 0,
+                    descuentos: parseFloat($("#coDescuentos").val()) || 0, tipo_compra: parseInt($("#coTipo").val()), codigo_control: $.trim($("#coControl").val()) || null
+                }
+            }).done(function (res) {
+                if (res.resultado) { $("#modalCompra").modal("hide"); cargar(); }
+                Swal.fire(res.resultado ? "Listo" : "Atención", res.mensaje, res.resultado ? "success" : "warning");
+            });
+        }
+
+        $("#btnBuscar").on("click", cargar);
+        $(function () { ctLlenarMeses($("#cboMes"), $("#cboGestion")); cargar(); });
+    </script>
+}

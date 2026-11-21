@@ -60,6 +60,13 @@
     <Compile Include="CD_Usuarios.cs" />
     <Compile Include="CD_Venta.cs" />
     <Compile Include="Conexion.cs" />
+    <Compile Include="Facturacion\LectorDatos.cs" />
+    <Compile Include="Facturacion\CD_ConfiguracionFacturacion.cs" />
+    <Compile Include="Facturacion\CD_CatalogoSin.cs" />
+    <Compile Include="Facturacion\CD_Factura.cs" />
+    <Compile Include="Facturacion\CD_Contingencia.cs" />
+    <Compile Include="Facturacion\CD_NotaCreditoDebito.cs" />
+    <Compile Include="Contabilidad\CD_Contabilidad.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

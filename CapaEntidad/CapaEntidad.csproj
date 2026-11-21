@@ -64,6 +64,17 @@
     <Compile Include="User_activo.cs" />
     <Compile Include="Usuario.cs" />
     <Compile Include="Venta.cs" />
+    <Compile Include="PermisoSistema.cs" />
+    <Compile Include="Facturacion\ConfiguracionFacturacion.cs" />
+    <Compile Include="Facturacion\SucursalFacturacion.cs" />
+    <Compile Include="Facturacion\CatalogoSin.cs" />
+    <Compile Include="Facturacion\Homologacion.cs" />
+    <Compile Include="Facturacion\DatosFiscalesCliente.cs" />
+    <Compile Include="Facturacion\Factura.cs" />
+    <Compile Include="Facturacion\RespuestaSiat.cs" />
+    <Compile Include="Facturacion\EventoSignificativo.cs" />
+    <Compile Include="Facturacion\NotaCreditoDebito.cs" />
+    <Compile Include="Contabilidad\Contabilidad.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
